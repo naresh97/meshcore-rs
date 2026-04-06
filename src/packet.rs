@@ -1,4 +1,4 @@
-use core::time;
+use core::{time, u32};
 
 use bitflags::bitflags;
 
@@ -55,7 +55,8 @@ impl Packet {
 
         let mut payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD> = heapless::Vec::new();
         payload.extend_from_slice(&identity.private);
-        let timestamp = (P::timestamp_ms() as u32).to_le_bytes();
+        let timestamp: u32 = P::timestamp_ms().try_into().unwrap_or_default();
+        let timestamp = timestamp.to_le_bytes();
         payload.extend_from_slice(&timestamp);
 
         let signature = {
