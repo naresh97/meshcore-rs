@@ -1,3 +1,4 @@
+mod preferences;
 mod queue;
 mod tables;
 
@@ -21,7 +22,7 @@ pub struct Mesh<P: Platform> {
     last_direct_advert: usize,
 
     identity: LocalIdentity,
-    preferences: Preferences,
+    preferences: preferences::Preferences,
     tables: tables::Tables,
     queue: queue::PacketQueue<P>,
 
@@ -80,17 +81,11 @@ impl<P: Platform> Mesh<P> {
     }
 
     fn self_advert_packet(&self) -> Packet {
-        Packet::create_advert(
+        Packet::create_advert::<P>(
             &self.identity,
             crate::packet::AdvertiserType::Repeater,
             self.advert_location(),
-            self.preferences.node_name,
+            self.preferences.node_name.as_deref(),
         )
     }
-}
-
-struct Preferences {
-    flood_advert_interval: usize,
-    zero_hop_advert_interval: usize,
-    node_name: Option<&str>,
 }

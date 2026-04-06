@@ -72,7 +72,6 @@ impl Packet {
         let payload = payload
             .into_array()
             .expect("Cannot panic since already resized");
-
         Packet {
             payload_type: PayloadType::Advert,
             payload,
