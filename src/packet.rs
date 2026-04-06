@@ -1,4 +1,4 @@
-use core::{time, u32};
+use core::time;
 
 use bitflags::bitflags;
 
@@ -35,7 +35,7 @@ impl Packet {
         let mut data: heapless::Vec<u8, MAX_ADVERT_DATA_SIZE> = heapless::Vec::new();
 
         let feature_flags = {
-            let mut f = advert_type.to_advert_flags();
+            let mut f = advert_type.into_advert_flags();
             if location.is_some() {
                 f |= AdvertHeaderFlags::HasLocation;
             }
@@ -76,7 +76,7 @@ impl Packet {
         Packet {
             payload_type: PayloadType::Advert,
             payload,
-            route_type: Default::default(),
+            route_type: RouteType::default(),
         }
     }
 }
@@ -115,7 +115,7 @@ pub enum AdvertiserType {
     Sensor,
 }
 impl AdvertiserType {
-    fn to_advert_flags(&self) -> AdvertHeaderFlags {
+    fn into_advert_flags(self) -> AdvertHeaderFlags {
         match self {
             AdvertiserType::Chat => AdvertHeaderFlags::ChatType,
             AdvertiserType::Repeater => AdvertHeaderFlags::RepeaterType,

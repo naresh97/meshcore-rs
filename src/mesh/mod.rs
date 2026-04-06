@@ -36,7 +36,7 @@ impl<P: Platform> Mesh<P> {
     fn send_self_advertisement(&mut self, _delay: Duration, _flood: bool) -> HardwareResult<()> {
         todo!()
     }
-    fn run(&mut self) -> HardwareResult<()> {
+    fn run(&mut self) {
         let timestamp = P::timestamp_ms();
         let since_last_flood_advert = timestamp - self.last_flood_advert;
         let since_last_zero_hop_advert = timestamp - self.last_direct_advert;
@@ -51,8 +51,6 @@ impl<P: Platform> Mesh<P> {
             self.send_zero_hop(packet, Duration::ZERO);
             self.last_direct_advert = timestamp;
         }
-
-        Ok(())
     }
 
     fn send_flood(&mut self, mut packet: Packet, delay: Duration) {

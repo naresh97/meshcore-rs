@@ -1,12 +1,7 @@
 #![no_std]
+#![warn(clippy::pedantic)]
 #![allow(unused)]
 #![warn(unused_variables)]
-#![warn(
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss
-)]
 
 mod error;
 mod identity;
@@ -23,7 +18,7 @@ use crate::{error::HardwareResult, identity::LocalIdentity, platform::Platform, 
 fn main() {}
 
 fn setup<R: Radio>() -> HardwareResult<()> {
-    let radio = R::new()?;
+    let _radio = R::new()?;
     todo!()
 }
 fn main_loop() {}

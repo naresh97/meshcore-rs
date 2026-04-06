@@ -28,9 +28,8 @@ struct RadioDriver<R: Radio> {
 }
 
 impl<R: Radio> RadioDriver<R> {
-    fn run(&mut self) -> HardwareResult<()> {
+    fn run(&mut self) {
         self.calculate_noise_floor();
-        Ok(())
     }
 
     fn calculate_noise_floor(&mut self) {
