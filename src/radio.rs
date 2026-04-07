@@ -20,7 +20,9 @@ where
 
 struct RadioDriver<R: Radio> {
     radio: R,
+
     state: RadioState,
+    is_ready: bool,
 
     noise_floor_n: usize,
     noise_floor_sum: isize,
@@ -56,8 +58,6 @@ impl<R: Radio> RadioDriver<R> {
             }
             self.noise_floor_sum = 0;
         }
-
-        todo!()
     }
 }
 
@@ -66,5 +66,4 @@ pub enum RadioState {
     Rx,
     TxWait,
     TxDone,
-    IntReady,
 }
