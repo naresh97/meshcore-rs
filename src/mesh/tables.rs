@@ -1,4 +1,4 @@
-use crate::packet::Packet;
+use crate::mesh::packet::Packet;
 
 pub struct Tables {}
 impl Tables {

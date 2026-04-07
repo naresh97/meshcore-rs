@@ -2,7 +2,11 @@ use core::time;
 
 use bitflags::bitflags;
 
-use crate::{LocalIdentity, identity::PUBLIC_KEY_SIZE, platform::Platform, sensor::GpsLocation};
+use crate::{
+    mesh::identity::{LocalIdentity, PUBLIC_KEY_SIZE},
+    platform::Platform,
+    sensor::GpsLocation,
+};
 
 #[repr(C)]
 struct PacketInner {

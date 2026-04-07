@@ -1,3 +1,5 @@
+mod identity;
+mod packet;
 mod preferences;
 mod queue;
 mod tables;
@@ -11,8 +13,7 @@ use heapless::mpmc::Queue;
 
 use crate::{
     error::HardwareResult,
-    identity::LocalIdentity,
-    packet::{Packet, PayloadType, RouteType},
+    mesh::packet::{AdvertiserType, Packet, PayloadType, RouteType},
     platform::Platform,
     sensor::GpsLocation,
 };
@@ -21,7 +22,7 @@ pub struct Mesh<P: Platform> {
     last_flood_advert: usize,
     last_direct_advert: usize,
 
-    identity: LocalIdentity,
+    identity: identity::LocalIdentity,
     preferences: preferences::Preferences,
     tables: tables::Tables,
     queue: queue::PacketQueue<P>,
@@ -54,7 +55,7 @@ impl<P: Platform> Mesh<P> {
     }
 
     fn send_flood(&mut self, mut packet: Packet, delay: Duration) {
-        packet.route_type = RouteType::Flood;
+        packet.route_type = packet::RouteType::Flood;
         self.tables.mark_as_seen(&packet);
         let priority: u8 = match packet.payload_type {
             PayloadType::Advert => 2,
@@ -81,9 +82,11 @@ impl<P: Platform> Mesh<P> {
     fn self_advert_packet(&self) -> Packet {
         Packet::create_advert::<P>(
             &self.identity,
-            crate::packet::AdvertiserType::Repeater,
+            AdvertiserType::Repeater,
             self.advert_location(),
             self.preferences.node_name.as_deref(),
         )
     }
 }
+
+impl<P: Platform> Mesh<P> {}

@@ -1,19 +1,25 @@
+//! # meshcore-rs
+//! An implementation of the MeshCore protocol in Rust.
+//! While initially heavily leaning on the original C++ implementation by Scott Powell (see LICENSE),
+//! it should be written instead in idiomatic Rust code with the aims of providing
+//! safety, performance and ease of development/maintainability.
+
 #![no_std]
 #![warn(clippy::pedantic)]
+#![allow(clippy::doc_markdown)]
 #![allow(unused)]
 #![warn(unused_variables)]
+#![warn(missing_docs)]
 
 mod error;
-mod identity;
 mod mesh;
-mod packet;
 mod platform;
 mod radio;
 mod sensor;
 
 use core::{marker::PhantomData, time::Duration};
 
-use crate::{error::HardwareResult, identity::LocalIdentity, platform::Platform, radio::Radio};
+use crate::{error::HardwareResult, platform::Platform, radio::Radio};
 
 fn main() {}
 
@@ -22,12 +28,3 @@ fn setup<R: Radio>() -> HardwareResult<()> {
     todo!()
 }
 fn main_loop() {}
-
-trait Storage
-where
-    Self: Sized,
-{
-    fn new() -> HardwareResult<Self>;
-    fn identity(&self) -> HardwareResult<Option<LocalIdentity>>;
-    fn gen_identity(&mut self) -> HardwareResult<LocalIdentity>;
-}

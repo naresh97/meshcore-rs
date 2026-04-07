@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, time::Duration};
 
-use crate::{packet::Packet, platform::Platform};
+use crate::{mesh::packet::Packet, platform::Platform};
 
 const QUEUE_SIZE: usize = 32;
 pub struct PacketQueue<P: Platform> {
