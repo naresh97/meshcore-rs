@@ -1,7 +1,7 @@
 mod identity;
-mod packet;
-mod preferences;
-mod queue;
+pub mod packet;
+pub mod preferences;
+pub mod queue;
 mod tables;
 
 use core::{
@@ -25,7 +25,8 @@ pub struct Mesh<P: Platform> {
     identity: identity::LocalIdentity,
     preferences: preferences::Preferences,
     tables: tables::Tables,
-    queue: queue::PacketQueue<P>,
+
+    tx_queue: queue::PacketQueue<P>,
 
     _p: PhantomData<P>,
 }
@@ -72,7 +73,7 @@ impl<P: Platform> Mesh<P> {
     }
 
     fn send_packet(&mut self, packet: Packet, priority: u8, delay: Duration) {
-        self.queue.push(packet, priority, delay);
+        self.tx_queue.push(packet, priority, delay);
     }
 
     fn advert_location(&self) -> Option<GpsLocation> {

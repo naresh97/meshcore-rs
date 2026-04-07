@@ -4,7 +4,7 @@ use crate::{mesh::packet::Packet, platform::Platform};
 
 const QUEUE_SIZE: usize = 32;
 pub struct PacketQueue<P: Platform> {
-    /// Returns the packet with the lowest priority
+    /// Priority queue for packets, with `Min` specifying lower numbers as higher priority
     binary_heap: heapless::BinaryHeap<QueuedPacket, heapless::binary_heap::Min, QUEUE_SIZE>,
 
     _platform: PhantomData<P>,
@@ -18,6 +18,10 @@ impl<P: Platform> PacketQueue<P> {
             priority,
             scheduled_for_ms: now + (delay.as_millis() as usize),
         });
+    }
+
+    pub fn pop(&mut self) -> Option<Packet> {
+        self.binary_heap.pop().map(|q| q.packet)
     }
 }
 

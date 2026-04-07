@@ -1,6 +1,14 @@
-use core::marker::PhantomData;
+use core::{marker::PhantomData, time};
 
-use crate::error::HardwareResult;
+use crate::{
+    error::HardwareResult,
+    mesh::{
+        packet::Packet,
+        preferences::{self, Preferences},
+        queue::PacketQueue,
+    },
+    platform::Platform,
+};
 
 pub trait Radio
 where
@@ -16,31 +24,155 @@ where
 
     fn is_receiving_packet(&self) -> HardwareResult<bool>;
     fn current_rssi(&self) -> HardwareResult<i32>;
+
+    fn finish_transmit(&self) -> HardwareResult<()>;
+
+    fn sleep(&self) -> HardwareResult<()>;
 }
 
-struct RadioDriver<R: Radio> {
+struct RadioDriver<R: Radio, P: Platform> {
     radio: R,
+    preferences: Preferences,
 
     state: RadioState,
     is_ready: bool,
+    error_states: ErrorStates,
 
     noise_floor_n: usize,
     noise_floor_sum: isize,
     noise_floor: isize,
+    noise_floor_threshold: isize,
+    since_last_noise_floor_calibration: usize,
+
+    previous_is_in_rx: bool,
+    not_in_rx_since: usize,
+
+    outbound_packet: Option<Packet>,
+    outbound_since: usize,
+    outbound_expiry: usize,
+    n_sent: usize,
+    total_airtime: usize,
+    last_budget_update: usize,
+    tx_budget_ms: usize,
+    next_tx_time: usize,
+
+    next_agc_reset_time: usize,
+
+    rx_queue: PacketQueue<P>,
+
+    _p: PhantomData<P>,
 }
 
-impl<R: Radio> RadioDriver<R> {
+struct ErrorStates {
+    start_rx_timeout: bool,
+}
+
+impl<R: Radio, P: Platform> RadioDriver<R, P> {
+    const NOISE_FLOOR_CALIBRATION_INTERVAL: usize = 2000;
+    const NUMBER_OF_SAMPLES_NOISE_FLOOR: usize = 64;
+    const MIN_TX_BUDGET_RESERVE_MS: usize = 100;
+
     fn run(&mut self) {
-        self.calculate_noise_floor();
+        let timestamp = P::timestamp_ms();
+
+        if timestamp.saturating_sub(self.since_last_noise_floor_calibration)
+            >= Self::NOISE_FLOOR_CALIBRATION_INTERVAL
+        {
+            self.calibrate_noise_floor(self.preferences.radio_interference_threshold);
+        }
+        self.sample_noise_floor();
+
+        let is_in_rx = matches!(self.state, RadioState::Rx);
+        if is_in_rx != self.previous_is_in_rx {
+            self.previous_is_in_rx = is_in_rx;
+            if !is_in_rx {
+                self.not_in_rx_since = timestamp;
+            }
+        }
+        if !is_in_rx && (timestamp.saturating_sub(self.not_in_rx_since) > 8000) {
+            self.error_states.start_rx_timeout = true;
+        }
+
+        if self.outbound_packet.is_some() {
+            if self.is_send_complete() {
+                let tx_duration = timestamp - self.outbound_since;
+                self.total_airtime += tx_duration;
+                self.update_tx_budget();
+                if tx_duration > self.tx_budget_ms {
+                    self.tx_budget_ms = 0;
+                } else {
+                    self.tx_budget_ms -= tx_duration;
+                }
+
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    clippy::cast_precision_loss
+                )]
+                if self.tx_budget_ms < Self::MIN_TX_BUDGET_RESERVE_MS {
+                    let duty_cycle = 1.0 / (1.0 + self.preferences.airtime_budget_factor);
+                    let needed = Self::MIN_TX_BUDGET_RESERVE_MS - self.tx_budget_ms;
+                    self.next_tx_time = timestamp + (needed as f32 / duty_cycle) as usize;
+                } else {
+                    self.next_tx_time = timestamp;
+                }
+
+                self.on_send_finished();
+                self.outbound_packet = None;
+            } else if self.outbound_expiry >= timestamp {
+                self.on_send_finished();
+                self.outbound_packet = None;
+            } else {
+                return;
+            }
+
+            self.next_agc_reset_time = timestamp + self.preferences.agc_reset_interval_ms * 4000;
+        }
+
+        if self.preferences.agc_reset_interval_ms > 0 && timestamp > self.next_agc_reset_time {
+            self.reset_agc();
+            self.next_agc_reset_time = timestamp + self.preferences.agc_reset_interval_ms * 4000;
+        }
     }
 
-    fn calculate_noise_floor(&mut self) {
-        const NUMBER_OF_SAMPLES: usize = 64;
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    fn update_tx_budget(&mut self) {
+        const ONE_HOUR_MS: f32 = 3_600_000_f32;
+
+        let now = P::timestamp_ms();
+        let elapsed = now - self.last_budget_update;
+        let duty_cycle = 1.0 / (1.0 + self.preferences.airtime_budget_factor);
+        let max_budget: usize = (ONE_HOUR_MS * duty_cycle) as usize;
+        let refill = (elapsed as f32 * duty_cycle) as usize;
+        if refill > 0 {
+            self.tx_budget_ms += refill;
+            if self.tx_budget_ms > max_budget {
+                self.tx_budget_ms = max_budget;
+            }
+            self.last_budget_update = now;
+        }
+    }
+
+    fn is_send_complete(&mut self) -> bool {
+        if self.is_ready {
+            self.state = RadioState::Idle;
+            self.n_sent += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn sample_noise_floor(&mut self) {
         const SAMPLING_THRESHOLD: isize = 14;
         const LOWER_THRESHOLD: isize = -120;
 
         if matches!(self.state, RadioState::Rx)
-            && self.noise_floor_n < NUMBER_OF_SAMPLES
+            && self.noise_floor_n < Self::NUMBER_OF_SAMPLES_NOISE_FLOOR
             && !self.radio.is_receiving_packet().unwrap_or(true)
         {
             let Ok(rssi) = self.radio.current_rssi() else {
@@ -51,13 +183,40 @@ impl<R: Radio> RadioDriver<R> {
                 self.noise_floor_n = self.noise_floor_n.saturating_add(1);
                 self.noise_floor_sum = self.noise_floor_sum.saturating_add(rssi);
             }
-        } else if self.noise_floor_n >= NUMBER_OF_SAMPLES && self.noise_floor_sum != 0 {
-            self.noise_floor = self.noise_floor_sum / NUMBER_OF_SAMPLES.cast_signed();
+        } else if self.noise_floor_n >= Self::NUMBER_OF_SAMPLES_NOISE_FLOOR
+            && self.noise_floor_sum != 0
+        {
+            self.noise_floor =
+                self.noise_floor_sum / Self::NUMBER_OF_SAMPLES_NOISE_FLOOR.cast_signed();
             if self.noise_floor < LOWER_THRESHOLD {
                 self.noise_floor = LOWER_THRESHOLD;
             }
             self.noise_floor_sum = 0;
         }
+    }
+    fn calibrate_noise_floor(&mut self, threshold: isize) {
+        self.noise_floor_threshold = threshold;
+        if self.noise_floor_n >= Self::NUMBER_OF_SAMPLES_NOISE_FLOOR {
+            self.noise_floor_n = 0;
+            self.noise_floor_sum = 0;
+        }
+    }
+
+    fn on_send_finished(&mut self) {
+        _ = self.radio.finish_transmit();
+        P::on_after_transmit();
+        self.state = RadioState::Idle;
+    }
+
+    fn reset_agc(&mut self) {
+        if !self.is_ready || self.radio.is_receiving_packet().unwrap_or(true) {
+            return;
+        }
+        self.radio.sleep(); //  warm sleep to reset analog frontend
+        self.state = RadioState::Idle;
+        self.noise_floor = 0;
+        self.noise_floor_n = 0;
+        self.noise_floor_sum = 0;
     }
 }
 
