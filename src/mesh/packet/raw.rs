@@ -20,16 +20,24 @@ pub struct Header {
 }
 
 #[bitsize(2)]
-#[derive(FromBits)]
+#[derive(FromBits, Clone, Copy)]
 pub enum RouteType {
     TransportFlood,
     Flood,
     Direct,
     TransportDirect,
 }
+impl RouteType {
+    pub fn is_direct(&self) -> bool {
+        match self {
+            RouteType::Direct | Self::TransportDirect => true,
+            _ => false,
+        }
+    }
+}
 
 #[bitsize(4)]
-#[derive(FromBits)]
+#[derive(FromBits, Clone, Copy)]
 pub enum PayloadType {
     Request,
     Response,
@@ -52,11 +60,6 @@ pub enum PayloadType {
 struct PathMetadata {
     length: u6,
     mode: u2,
-}
-
-enum Payload {
-    Trace { trace_tag: u32, auth_code: u32 },
-    -todo-
 }
 
 impl Packet {
