@@ -1,3 +1,5 @@
+mod noise_floor;
+
 use core::{marker::PhantomData, time};
 
 use crate::{
@@ -8,7 +10,10 @@ use crate::{
         queue::PacketQueue,
     },
     platform::Platform,
+    radio::noise_floor::NoiseFloor,
 };
+
+const MAX_TRANSMISSION_LENGTH: usize = 255;
 
 pub trait Radio
 where
@@ -28,6 +33,9 @@ where
     fn finish_transmit(&self) -> HardwareResult<()>;
 
     fn sleep(&self) -> HardwareResult<()>;
+
+    fn read_data(&self) -> HardwareResult<Option<heapless::Vec<u8, MAX_TRANSMISSION_LENGTH>>>;
+    fn start_receive(&self) -> HardwareResult<()>;
 }
 
 struct RadioDriver<R: Radio, P: Platform> {
@@ -38,11 +46,7 @@ struct RadioDriver<R: Radio, P: Platform> {
     is_ready: bool,
     error_states: ErrorStates,
 
-    noise_floor_n: usize,
-    noise_floor_sum: isize,
-    noise_floor: isize,
-    noise_floor_threshold: isize,
-    since_last_noise_floor_calibration: usize,
+    noise_floor: NoiseFloor<R, P>,
 
     previous_is_in_rx: bool,
     not_in_rx_since: usize,
@@ -68,19 +72,13 @@ struct ErrorStates {
 }
 
 impl<R: Radio, P: Platform> RadioDriver<R, P> {
-    const NOISE_FLOOR_CALIBRATION_INTERVAL: usize = 2000;
-    const NUMBER_OF_SAMPLES_NOISE_FLOOR: usize = 64;
     const MIN_TX_BUDGET_RESERVE_MS: usize = 100;
 
     fn run(&mut self) {
         let timestamp = P::timestamp_ms();
 
-        if timestamp.saturating_sub(self.since_last_noise_floor_calibration)
-            >= Self::NOISE_FLOOR_CALIBRATION_INTERVAL
-        {
-            self.calibrate_noise_floor(self.preferences.radio_interference_threshold);
-        }
-        self.sample_noise_floor();
+        self.noise_floor
+            .run(&self.preferences, self.state, &self.radio);
 
         let is_in_rx = matches!(self.state, RadioState::Rx);
         if is_in_rx != self.previous_is_in_rx {
@@ -135,6 +133,16 @@ impl<R: Radio, P: Platform> RadioDriver<R, P> {
         }
     }
 
+    fn receive_raw(&mut self) {
+        if self.is_ready {
+            let data = self.radio.read_data();
+            self.state = RadioState::Idle;
+        }
+        if !matches!(self.state, RadioState::Rx) && self.radio.start_receive().is_ok() {
+            self.state = RadioState::Rx;
+        }
+    }
+
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
@@ -167,41 +175,6 @@ impl<R: Radio, P: Platform> RadioDriver<R, P> {
         }
     }
 
-    fn sample_noise_floor(&mut self) {
-        const SAMPLING_THRESHOLD: isize = 14;
-        const LOWER_THRESHOLD: isize = -120;
-
-        if matches!(self.state, RadioState::Rx)
-            && self.noise_floor_n < Self::NUMBER_OF_SAMPLES_NOISE_FLOOR
-            && !self.radio.is_receiving_packet().unwrap_or(true)
-        {
-            let Ok(rssi) = self.radio.current_rssi() else {
-                return;
-            };
-            let rssi = rssi as isize;
-            if (rssi < self.noise_floor + SAMPLING_THRESHOLD) {
-                self.noise_floor_n = self.noise_floor_n.saturating_add(1);
-                self.noise_floor_sum = self.noise_floor_sum.saturating_add(rssi);
-            }
-        } else if self.noise_floor_n >= Self::NUMBER_OF_SAMPLES_NOISE_FLOOR
-            && self.noise_floor_sum != 0
-        {
-            self.noise_floor =
-                self.noise_floor_sum / Self::NUMBER_OF_SAMPLES_NOISE_FLOOR.cast_signed();
-            if self.noise_floor < LOWER_THRESHOLD {
-                self.noise_floor = LOWER_THRESHOLD;
-            }
-            self.noise_floor_sum = 0;
-        }
-    }
-    fn calibrate_noise_floor(&mut self, threshold: isize) {
-        self.noise_floor_threshold = threshold;
-        if self.noise_floor_n >= Self::NUMBER_OF_SAMPLES_NOISE_FLOOR {
-            self.noise_floor_n = 0;
-            self.noise_floor_sum = 0;
-        }
-    }
-
     fn on_send_finished(&mut self) {
         _ = self.radio.finish_transmit();
         P::on_after_transmit();
@@ -214,12 +187,11 @@ impl<R: Radio, P: Platform> RadioDriver<R, P> {
         }
         self.radio.sleep(); //  warm sleep to reset analog frontend
         self.state = RadioState::Idle;
-        self.noise_floor = 0;
-        self.noise_floor_n = 0;
-        self.noise_floor_sum = 0;
+        self.noise_floor.reset();
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum RadioState {
     Idle,
     Rx,

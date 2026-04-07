@@ -1,32 +1,26 @@
+mod raw;
+
 use core::time;
 
+use bilge::{
+    bitsize,
+    prelude::{Integer, u2, u4},
+};
 use bitflags::bitflags;
 
 use crate::{
-    mesh::identity::{LocalIdentity, PUBLIC_KEY_SIZE},
+    mesh::{
+        identity::{LocalIdentity, PUBLIC_KEY_SIZE},
+        packet::raw::MAX_PACKET_PAYLOAD,
+    },
     platform::Platform,
     sensor::GpsLocation,
 };
 
-#[repr(C)]
-struct PacketInner {
-    pub header: u8,
-    pub payload_length: u16,
-    pub path_length: u16,
-    pub transport_codes: [u16; 2],
-    pub path: [u8; MAX_PATH_SIZE],
-    pub payload: [u8; MAX_PACKET_PAYLOAD],
-    pub snr: i8,
-}
-
 pub struct Packet {
-    pub route_type: RouteType,
-    pub payload_type: PayloadType,
-    payload: [u8; MAX_PACKET_PAYLOAD],
+    //payload: [u8; MAX_PACKET_PAYLOAD],
 }
 
-const MAX_PATH_SIZE: usize = 64;
-const MAX_PACKET_PAYLOAD: usize = 182;
 const MAX_ADVERT_DATA_SIZE: usize = 32;
 
 impl Packet {
@@ -74,14 +68,27 @@ impl Packet {
         payload.extend(signature);
         payload.extend(data);
         payload.resize_default(MAX_PACKET_PAYLOAD);
-        let payload = payload
-            .into_array()
-            .expect("Cannot panic since already resized");
+        //let payload = payload
+        //    .into_array()
+        //    .expect("Cannot panic since already resized");
         Packet {
-            payload_type: PayloadType::Advert,
-            payload,
-            route_type: RouteType::default(),
+            //payload_type: PayloadType::Advert,
+            //payload,
+            //route_type: RouteType::default(),
         }
+    }
+
+    pub fn parse(data: &[u8]) -> Option<Self> {
+        let header = raw::Header::from(*data.first()?);
+        if header.version().as_usize() > 0 {
+            return None;
+        }
+        let has_transport_codes = matches!(
+            header.route_type(),
+            raw::RouteType::TransportFlood | raw::RouteType::TransportDirect
+        );
+
+        todo!()
     }
 }
 
@@ -127,28 +134,4 @@ impl AdvertiserType {
             AdvertiserType::Sensor => AdvertHeaderFlags::SensorType,
         }
     }
-}
-
-pub enum PayloadType {
-    Request,
-    Response,
-    TextMessage,
-    Ack,
-    Advert,
-    GroupText,
-    GroupData,
-    AnonymousRequest,
-    Path,
-    Trace,
-    MultiPart,
-    Control,
-}
-
-#[derive(Default)]
-pub enum RouteType {
-    #[default]
-    Flood,
-    TransportFlood,
-    Direct,
-    TransportDirect,
 }

@@ -13,7 +13,7 @@ use heapless::mpmc::Queue;
 
 use crate::{
     error::HardwareResult,
-    mesh::packet::{AdvertiserType, Packet, PayloadType, RouteType},
+    mesh::packet::{AdvertiserType, Packet},
     platform::Platform,
     sensor::GpsLocation,
 };
@@ -56,20 +56,20 @@ impl<P: Platform> Mesh<P> {
     }
 
     fn send_flood(&mut self, mut packet: Packet, delay: Duration) {
-        packet.route_type = packet::RouteType::Flood;
-        self.tables.mark_as_seen(&packet);
-        let priority: u8 = match packet.payload_type {
-            PayloadType::Advert => 2,
-            PayloadType::Path => 3,
-            _ => 1,
-        };
-        self.send_packet(packet, priority, delay);
+        //packet.route_type = packet::RouteType::Flood;
+        //self.tables.mark_as_seen(&packet);
+        //let priority: u8 = match packet.payload_type {
+        //    PayloadType::Advert => 2,
+        //    PayloadType::Path => 3,
+        //    _ => 1,
+        //};
+        //self.send_packet(packet, priority, delay);
     }
 
     fn send_zero_hop(&mut self, mut packet: Packet, delay: Duration) {
-        packet.route_type = RouteType::Direct;
-        self.tables.mark_as_seen(&packet);
-        self.send_packet(packet, 0, delay);
+        //packet.route_type = RouteType::Direct;
+        //self.tables.mark_as_seen(&packet);
+        //self.send_packet(packet, 0, delay);
     }
 
     fn send_packet(&mut self, packet: Packet, priority: u8, delay: Duration) {
