@@ -20,3 +20,7 @@ impl LocalIdentity {
         signature.to_bytes()
     }
 }
+
+pub struct RemoteIdentity {
+    pub public: [u8; PUBLIC_KEY_SIZE],
+}
