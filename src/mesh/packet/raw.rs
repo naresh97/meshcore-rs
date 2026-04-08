@@ -28,11 +28,8 @@ pub enum RouteType {
     TransportDirect,
 }
 impl RouteType {
-    pub fn is_direct(&self) -> bool {
-        match self {
-            RouteType::Direct | Self::TransportDirect => true,
-            _ => false,
-        }
+    pub fn is_direct(self) -> bool {
+        matches!(self, RouteType::Direct | Self::TransportDirect)
     }
 }
 

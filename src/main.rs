@@ -4,7 +4,7 @@
 //! it should be written instead in idiomatic Rust code with the aims of providing
 //! safety, performance and ease of development/maintainability.
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::doc_markdown)]
 #![allow(unused)]
