@@ -3,6 +3,7 @@ use ed25519_dalek::{Signer, SigningKey};
 pub const PRIVATE_KEY_SIZE: usize = 64;
 pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const SIGNATURE_SIZE: usize = 64;
+pub const CIPHER_MAC_SIZE: usize = 2;
 
 /// An identity created by this device, with private key known on this device.
 pub struct LocalIdentity {

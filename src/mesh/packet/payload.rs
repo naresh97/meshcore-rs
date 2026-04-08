@@ -1,7 +1,7 @@
 use bilge::prelude::*;
 
 use crate::mesh::{
-    identity::RemoteIdentity,
+    identity::{CIPHER_MAC_SIZE, RemoteIdentity},
     packet::{
         node::{NodeType, NodeTypeSet},
         path::Path,
@@ -47,10 +47,10 @@ impl Payload {
     pub fn parse(data: &[u8], payload_type: PayloadType) -> Option<Self> {
         let payload = match payload_type {
             PayloadType::Trace => {
-                let (trace_tag, rest) = data.split_at_checked(4)?;
-                let trace_tag = u32::from_le_bytes(trace_tag.try_into().ok()?);
-                let (auth_code, rest) = rest.split_at_checked(4)?;
-                let auth_code = u32::from_le_bytes(auth_code.try_into().ok()?);
+                let (&trace_tag, rest) = data.split_first_chunk::<4>()?;
+                let trace_tag = u32::from_le_bytes(trace_tag);
+                let (&auth_code, rest) = rest.split_first_chunk::<4>()?;
+                let auth_code = u32::from_le_bytes(auth_code);
                 let (&flags, rest) = rest.split_first()?;
                 let path_hash_size = flags & 0x03;
                 let path = match path_hash_size {
@@ -70,17 +70,16 @@ impl Payload {
                 let (&header, rest) = data.split_first()?;
                 let (&filter, rest) = rest.split_first()?;
                 let filter = NodeTypeSet::from(filter);
-                let (tag, rest) = rest.split_at_checked(4)?;
-                let tag = u32::from_le_bytes(tag.try_into().ok()?);
+                let (&tag, rest) = rest.split_first_chunk::<4>()?;
+                let tag = u32::from_le_bytes(tag);
 
                 let control_type = ControlType::from(u4::new(header >> 4));
                 let control_data = match control_type {
                     ControlType::DiscoverRequest => {
                         let only_prefix = (header & 1) == 1;
-                        let since = rest.split_at_checked(4).and_then(|(since, _)| {
-                            let since = u32::from_le_bytes(since.try_into().ok()?);
-                            Some(since)
-                        });
+                        let since = rest
+                            .split_first_chunk::<4>()
+                            .map(|(&since, _)| u32::from_le_bytes(since));
 
                         Some(ControlData::DiscoverRequest {
                             filter,
@@ -105,8 +104,8 @@ impl Payload {
                 Self::Control(control_data)
             }
             PayloadType::Ack => {
-                let (crc, _) = data.split_at_checked(4)?;
-                let crc = u32::from_le_bytes(crc.try_into().ok()?);
+                let (&crc, _) = data.split_first_chunk::<4>()?;
+                let crc = u32::from_le_bytes(crc);
                 Self::Ack { crc }
             }
             PayloadType::MultiPart => {
@@ -120,7 +119,13 @@ impl Payload {
                     payload: heapless::Vec::from_slice(payload).ok()?,
                 }
             }
-            PayloadType::Request => todo!(),
+            PayloadType::Request => {
+                let (&destination_hash, rest) = data.split_first()?;
+                let (&source_hash, rest) = rest.split_first()?;
+                let (&cipher_mac, rest) = rest.split_first_chunk::<CIPHER_MAC_SIZE>()?;
+                let ciphertext = rest;
+                todo!()
+            }
             PayloadType::Response => todo!(),
             PayloadType::TextMessage => todo!(),
             PayloadType::Path => todo!(),
@@ -225,6 +230,5 @@ mod tests {
         let payload = "284D0EB1C4C82936AEA94F00E39D27B628579A769F668AB266F85D188A56834C041E957C5CC533A91DA26DCED3DEF2856AD883BBB064AB7F11DEB2FC3AD4FA03642ACF23435820E7AD35D7A75C64BDED6E3444E3D75B238B3E5F158FAD2B7856F515";
         let payload = hex::decode(payload).unwrap();
         let payload = Payload::parse(&payload, PayloadType::MultiPart).unwrap();
-        dbg!(payload);
     }
 }
