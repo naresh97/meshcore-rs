@@ -1,6 +1,6 @@
 use bilge::prelude::*;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum NodeType {
     Chat,
     Repeater,
@@ -21,7 +21,7 @@ impl NodeType {
 }
 
 #[bitsize(8)]
-#[derive(FromBits, Clone, Copy)]
+#[derive(FromBits, DebugBits, Clone, Copy)]
 pub struct NodeTypeSet {
     is_none: bool,
     is_chat: bool,
@@ -31,7 +31,7 @@ pub struct NodeTypeSet {
     reserved: u3,
 }
 impl NodeTypeSet {
-    pub fn contains(&self, node_type: NodeType) -> bool {
+    pub fn contains(self, node_type: NodeType) -> bool {
         match node_type {
             NodeType::Chat => self.is_chat(),
             NodeType::Repeater => self.is_repeater(),

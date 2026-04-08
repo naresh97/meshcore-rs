@@ -21,6 +21,7 @@ impl LocalIdentity {
     }
 }
 
+#[derive(Debug)]
 pub struct RemoteIdentity {
     pub public: [u8; PUBLIC_KEY_SIZE],
 }

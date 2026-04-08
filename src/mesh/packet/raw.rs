@@ -34,7 +34,7 @@ impl RouteType {
 }
 
 #[bitsize(4)]
-#[derive(FromBits, Clone, Copy)]
+#[derive(Debug, FromBits, Clone, Copy)]
 pub enum PayloadType {
     Request,
     Response,

@@ -5,10 +5,11 @@ use crate::mesh::{
     packet::{
         node::{NodeType, NodeTypeSet},
         path::Path,
-        raw::{PayloadType, RouteType},
+        raw::{MAX_PACKET_PAYLOAD, PayloadType, RouteType},
     },
 };
 
+#[derive(Debug)]
 enum Payload {
     Trace {
         trace_tag: u32,
@@ -17,8 +18,17 @@ enum Payload {
         path: Path,
     },
     Control(ControlData),
+    Ack {
+        crc: u32,
+    },
+    MultiPart {
+        remaining_packets: u8,
+        payload_type: PayloadType,
+        payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
+    },
 }
 
+#[derive(Debug)]
 enum ControlData {
     DiscoverRequest {
         filter: NodeTypeSet,
@@ -94,16 +104,30 @@ impl Payload {
                 }?;
                 Self::Control(control_data)
             }
+            PayloadType::Ack => {
+                let (crc, _) = data.split_at_checked(4)?;
+                let crc = u32::from_le_bytes(crc.try_into().ok()?);
+                Self::Ack { crc }
+            }
+            PayloadType::MultiPart => {
+                let (&header, rest) = data.split_first()?;
+                let remaining_packets = header >> 4;
+                let payload_type = PayloadType::from(u4::new(header & 0b1111));
+                let payload = rest;
+                Self::MultiPart {
+                    remaining_packets,
+                    payload_type,
+                    payload: heapless::Vec::from_slice(payload).ok()?,
+                }
+            }
             PayloadType::Request => todo!(),
             PayloadType::Response => todo!(),
             PayloadType::TextMessage => todo!(),
-            PayloadType::Ack => todo!(),
+            PayloadType::Path => todo!(),
             PayloadType::Advert => todo!(),
             PayloadType::GroupText => todo!(),
             PayloadType::GroupData => todo!(),
             PayloadType::AnonymousRequest => todo!(),
-            PayloadType::Path => todo!(),
-            PayloadType::MultiPart => todo!(),
             PayloadType::RawCustom => todo!(),
         };
         Some(payload)
@@ -194,5 +218,13 @@ mod tests {
         assert!(!filter.contains(NodeType::Chat));
         assert!(!filter.contains(NodeType::Room));
         assert!(!filter.contains(NodeType::Sensor));
+    }
+
+    #[test]
+    fn parse_multipart() {
+        let payload = "284D0EB1C4C82936AEA94F00E39D27B628579A769F668AB266F85D188A56834C041E957C5CC533A91DA26DCED3DEF2856AD883BBB064AB7F11DEB2FC3AD4FA03642ACF23435820E7AD35D7A75C64BDED6E3444E3D75B238B3E5F158FAD2B7856F515";
+        let payload = hex::decode(payload).unwrap();
+        let payload = Payload::parse(&payload, PayloadType::MultiPart).unwrap();
+        dbg!(payload);
     }
 }
