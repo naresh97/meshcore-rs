@@ -13,7 +13,10 @@ use heapless::mpmc::Queue;
 
 use crate::{
     error::HardwareResult,
-    mesh::packet::{AdvertiserType, Packet},
+    mesh::{
+        identity::LocalIdentity,
+        packet::{AdvertiserType, Packet},
+    },
     platform::Platform,
     sensor::GpsLocation,
 };
@@ -22,7 +25,7 @@ pub struct Mesh<P: Platform> {
     last_flood_advert: usize,
     last_direct_advert: usize,
 
-    identity: identity::LocalIdentity,
+    identity: LocalIdentity,
     preferences: preferences::Preferences,
     tables: tables::Tables,
 
