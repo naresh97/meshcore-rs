@@ -59,7 +59,10 @@ impl LocalIdentity {
         }
     }
 
-    pub fn get_shared_key(&self, other: [u8; PUBLIC_KEY_SIZE]) -> [u8; PUBLIC_KEY_SIZE] {
+    pub fn get_shared_key_with_public_key(
+        &self,
+        other: [u8; PUBLIC_KEY_SIZE],
+    ) -> [u8; PUBLIC_KEY_SIZE] {
         let mut e = [0u8; 32];
         e.copy_from_slice(&self.private[0..32]);
         e[0] &= 248;
@@ -71,6 +74,10 @@ impl LocalIdentity {
         let montgomery: MontgomeryPoint = edwards.to_montgomery();
         let shared = montgomery.mul_clamped(e);
         shared.to_bytes()
+    }
+
+    pub fn get_shared_key(&self, other: &RemoteIdentity) -> [u8; 32] {
+        self.get_shared_key_with_public_key(other.public)
     }
 }
 
@@ -121,7 +128,7 @@ mod tests {
         let private = hex::decode(PRIVATE_TEST).unwrap();
         let identity = LocalIdentity::from_private_key(&private.try_into().unwrap());
 
-        let shared = identity.get_shared_key(other.try_into().unwrap());
+        let shared = identity.get_shared_key_with_public_key(other.try_into().unwrap());
         let plaintext = decrypt(&shared, &ciphertext).unwrap();
         dbg!(hex::encode(&plaintext));
 
@@ -139,7 +146,7 @@ mod tests {
         let identity = LocalIdentity::from_private_key(&private.try_into().unwrap());
         let other = "d382cb99ac49fa97e3f2a52774582e57996653e873de45b9ed68318e5d7b0420";
         let other = hex::decode(other).unwrap();
-        let shared = identity.get_shared_key(other.try_into().unwrap());
+        let shared = identity.get_shared_key_with_public_key(other.try_into().unwrap());
         let ciphertext = encrypt(&shared, &plaintext).unwrap();
         let expected = "3d622e1984b69ad551282a0ddc33c865edf5";
         let expected = hex::decode(expected).unwrap();

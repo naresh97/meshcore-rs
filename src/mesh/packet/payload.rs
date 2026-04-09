@@ -1,16 +1,18 @@
 use bilge::prelude::*;
 
 use crate::mesh::{
-    identity::RemoteIdentity,
+    contacts::Contacts,
+    identity::{LocalIdentity, RemoteIdentity},
     packet::{
+        encryption::decrypt,
         node::{NodeType, NodeTypeSet},
         path::Path,
-        raw::{MAX_PACKET_PAYLOAD, PayloadType, RouteType},
+        raw::{MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
     },
 };
 
 #[derive(Debug)]
-enum Payload {
+pub enum Payload {
     Trace {
         trace_tag: u32,
         auth_code: u32,
@@ -27,10 +29,16 @@ enum Payload {
         payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
     },
     Undecryptable,
+    Path {
+        source_hash: u8,
+        path: heapless::Vec<u8, MAX_PATH_SIZE>,
+        extra_type: u8,
+        extra: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
+    },
 }
 
 #[derive(Debug)]
-enum ControlData {
+pub enum ControlData {
     DiscoverRequest {
         filter: NodeTypeSet,
         tag: u32,
@@ -44,8 +52,13 @@ enum ControlData {
     },
 }
 
-impl Payload {
-    pub fn parse(data: &[u8], payload_type: PayloadType) -> Option<Self> {
+pub struct PayloadParser {
+    identity: LocalIdentity,
+    contacts: Contacts,
+}
+
+impl PayloadParser {
+    pub fn parse(&self, data: &[u8], payload_type: PayloadType) -> Option<Payload> {
         let payload = match payload_type {
             PayloadType::Trace => {
                 let (&trace_tag, rest) = data.split_first_chunk::<4>()?;
@@ -102,33 +115,70 @@ impl Payload {
                     }
                     ControlType::Unknown => None,
                 }?;
-                Self::Control(control_data)
+                Payload::Control(control_data)
             }
             PayloadType::Ack => {
                 let (&crc, _) = data.split_first_chunk::<4>()?;
                 let crc = u32::from_le_bytes(crc);
-                Self::Ack { crc }
+                Payload::Ack { crc }
             }
             PayloadType::MultiPart => {
                 let (&header, rest) = data.split_first()?;
                 let remaining_packets = header >> 4;
                 let payload_type = PayloadType::from(u4::new(header & 0b1111));
                 let payload = rest;
-                Self::MultiPart {
+                Payload::MultiPart {
                     remaining_packets,
                     payload_type,
                     payload: heapless::Vec::from_slice(payload).ok()?,
                 }
             }
-            PayloadType::Request => {
+            PayloadType::Path
+            | PayloadType::Request
+            | PayloadType::Response
+            | PayloadType::TextMessage => {
                 let (&destination_hash, rest) = data.split_first()?;
+                if destination_hash != self.identity.public[0] {
+                    return Some(Payload::Undecryptable);
+                }
+
                 let (&source_hash, rest) = rest.split_first()?;
                 let ciphertext = rest;
-                todo!()
+                let Some(plaintext) = self
+                    .contacts
+                    .get_matches_hash(source_hash)
+                    .map(|id| self.identity.get_shared_key(&id))
+                    .flat_map(|shared| decrypt(&shared, ciphertext))
+                    .next()
+                else {
+                    return Some(Payload::Undecryptable);
+                };
+                let data = plaintext.as_slice();
+
+                match payload_type {
+                    PayloadType::Path => {
+                        let (&path_length, rest) = data.split_first()?;
+                        let (path, rest) = rest.split_at_checked(path_length.into())?;
+                        let path = heapless::Vec::from_slice(path).ok()?;
+                        let (&extra_type, rest) = rest.split_first()?;
+                        let extra = heapless::Vec::from_slice(rest).ok()?;
+                        Some(Payload::Path {
+                            source_hash,
+                            path,
+                            extra_type,
+                            extra,
+                        })
+                    }
+                    PayloadType::Request => {
+                        let (&timestamp, rest) = data.split_first_chunk::<4>()?;
+                        let timestamp = u32::from_le_bytes(timestamp);
+                        let (&request_type, rest) = rest.split_first()?;
+                        let request_type = RequestType::try_from(request_type).ok()?;
+                        todo!()
+                    }
+                    _ => None,
+                }?
             }
-            PayloadType::Response => todo!(),
-            PayloadType::TextMessage => todo!(),
-            PayloadType::Path => todo!(),
             PayloadType::Advert => todo!(),
             PayloadType::GroupText => todo!(),
             PayloadType::GroupData => todo!(),
@@ -148,9 +198,29 @@ enum ControlType {
     Unknown,
 }
 
+#[bitsize(8)]
+#[derive(TryFromBits)]
+enum RequestType {
+    GetStatus = 0x01,
+    KeepAlive = 0x02,
+    GetTelemetryData = 0x03,
+    GetAccessList = 0x05,
+    GetNeighbours = 0x06,
+    GetOwnerInfo = 0x07,
+}
+
 #[cfg(test)]
 mod tests {
-    use std::process::id;
+    use std::{os::linux::net::TcpStreamExt, process::id};
+
+    fn test_parser() -> PayloadParser {
+        PayloadParser {
+            identity: LocalIdentity::from_private_key(
+                &hex::decode("104B70BC64F3FDBDEC6E9A9189C40C7B6A64E5D3A91B75D423EDF879C4C082605F852A0F473307596502D95238CE1FEC32C4BEBD7D119AE73974C2BFA650A1B3").unwrap().try_into().unwrap(),
+            ),
+            contacts: Contacts {},
+        }
+    }
 
     use super::*;
     #[test]
@@ -162,7 +232,7 @@ mod tests {
             auth_code,
             flags,
             path,
-        } = Payload::parse(&payload, PayloadType::Trace).unwrap()
+        } = test_parser().parse(&payload, PayloadType::Trace).unwrap()
         else {
             panic!()
         };
@@ -190,7 +260,7 @@ mod tests {
             tag,
             node_type,
             identity,
-        }) = Payload::parse(&payload, PayloadType::Control).unwrap()
+        }) = test_parser().parse(&payload, PayloadType::Control).unwrap()
         else {
             panic!();
         };
@@ -212,7 +282,7 @@ mod tests {
             tag,
             only_prefix,
             since: Some(since),
-        }) = Payload::parse(&payload, PayloadType::Control).unwrap()
+        }) = test_parser().parse(&payload, PayloadType::Control).unwrap()
         else {
             panic!()
         };
@@ -229,6 +299,8 @@ mod tests {
     fn parse_multipart() {
         let payload = "284D0EB1C4C82936AEA94F00E39D27B628579A769F668AB266F85D188A56834C041E957C5CC533A91DA26DCED3DEF2856AD883BBB064AB7F11DEB2FC3AD4FA03642ACF23435820E7AD35D7A75C64BDED6E3444E3D75B238B3E5F158FAD2B7856F515";
         let payload = hex::decode(payload).unwrap();
-        let _payload = Payload::parse(&payload, PayloadType::MultiPart).unwrap();
+        let _payload = test_parser()
+            .parse(&payload, PayloadType::MultiPart)
+            .unwrap();
     }
 }
