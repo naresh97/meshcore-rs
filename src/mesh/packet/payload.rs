@@ -26,6 +26,7 @@ enum Payload {
         payload_type: PayloadType,
         payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
     },
+    Undecryptable,
 }
 
 #[derive(Debug)]
@@ -99,7 +100,7 @@ impl Payload {
                             identity,
                         })
                     }
-                    _ => None,
+                    ControlType::Unknown => None,
                 }?;
                 Self::Control(control_data)
             }
@@ -229,6 +230,6 @@ mod tests {
     fn parse_multipart() {
         let payload = "284D0EB1C4C82936AEA94F00E39D27B628579A769F668AB266F85D188A56834C041E957C5CC533A91DA26DCED3DEF2856AD883BBB064AB7F11DEB2FC3AD4FA03642ACF23435820E7AD35D7A75C64BDED6E3444E3D75B238B3E5F158FAD2B7856F515";
         let payload = hex::decode(payload).unwrap();
-        let payload = Payload::parse(&payload, PayloadType::MultiPart).unwrap();
+        let _payload = Payload::parse(&payload, PayloadType::MultiPart).unwrap();
     }
 }
