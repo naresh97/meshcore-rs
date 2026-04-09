@@ -3,10 +3,14 @@ use crate::{
     mesh::{identity::PUBLIC_KEY_SIZE, packet::raw::MAX_PACKET_PAYLOAD},
 };
 
-pub const CIPHER_KEY_SIZE: usize = 16;
+pub const SECRET_SIZE: usize = 32;
+pub const CHANNEL_SECRET_SIZE: usize = 16;
+
+const CIPHER_KEY_SIZE: usize = 16;
+const CIPHER_MAC_SIZE: usize = 2;
 
 pub fn encrypt(
-    secret: &[u8; PUBLIC_KEY_SIZE],
+    secret: &[u8; SECRET_SIZE],
     plaintext: &[u8],
 ) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
     let mut ciphertext = aes_encrypt(
@@ -22,7 +26,7 @@ pub fn encrypt(
 }
 
 pub fn decrypt(
-    secret: &[u8; PUBLIC_KEY_SIZE],
+    secret: &[u8; SECRET_SIZE],
     ciphertext: &[u8],
 ) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
     let (&provided_hmac, ciphertext) = ciphertext
@@ -41,11 +45,20 @@ pub fn decrypt(
     Ok(plaintext)
 }
 
+pub fn encrypt_with_channel_secret(
+    secret: &[u8; CHANNEL_SECRET_SIZE],
+    plaintext: &[u8],
+) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
+    let mut padded = [0u8; SECRET_SIZE];
+    padded[0..16].copy_from_slice(secret);
+    encrypt(&padded, plaintext)
+}
+
 pub fn decrypt_with_channel_secret(
-    secret: &[u8; 16],
+    secret: &[u8; CHANNEL_SECRET_SIZE],
     ciphertext: &[u8],
 ) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
-    let mut padded = [0u8; 32];
+    let mut padded = [0u8; SECRET_SIZE];
     padded[0..16].copy_from_slice(secret);
     decrypt(&padded, ciphertext)
 }
@@ -90,7 +103,6 @@ fn aes_decrypt(
     Ok(result)
 }
 
-const CIPHER_MAC_SIZE: usize = 2;
 fn gen_hmac(secret: &[u8], ciphertext: &[u8]) -> EncryptionResult<[u8; CIPHER_MAC_SIZE]> {
     use hmac::{Hmac, KeyInit, Mac};
     use sha2::Sha256;
@@ -112,7 +124,7 @@ mod tests {
 
     use super::*;
     #[test]
-    fn test_decrypt() {
+    fn test_decrypt_channel() {
         let secret_s = "80174f513e9099612b537bc1cd450a41";
         let secret_s = hex::decode(secret_s).unwrap();
         let ciphertext = "E6C5343F31A462B35F2D79264F7CC1BADC880F400A68AE504EFE4CA85D69002E3E77";
@@ -124,12 +136,12 @@ mod tests {
         assert_eq!(expected.as_slice(), &plaintext);
     }
     #[test]
-    fn test_encrypt() {
+    fn test_encrypt_channel() {
         let secret = "80174f513e9099612b537bc1cd450a41";
         let secret = hex::decode(secret).unwrap();
         let plaintext = "da15d669006a676572686f6c642d543131343a204d6f696e2100000000000000";
         let plaintext = hex::decode(plaintext).unwrap();
-        let cipher = encrypt(secret[..16].try_into().unwrap(), &plaintext).unwrap();
+        let cipher = encrypt_with_channel_secret(&secret.try_into().unwrap(), &plaintext).unwrap();
         let expected = "E6C5343F31A462B35F2D79264F7CC1BADC880F400A68AE504EFE4CA85D69002E3E77";
         let expected = hex::decode(expected).unwrap();
         assert_eq!(expected.as_slice(), &cipher);

@@ -1,7 +1,7 @@
 use bilge::prelude::*;
 
 use crate::mesh::{
-    identity::{CIPHER_MAC_SIZE, RemoteIdentity},
+    identity::RemoteIdentity,
     packet::{
         node::{NodeType, NodeTypeSet},
         path::Path,
@@ -123,7 +123,6 @@ impl Payload {
             PayloadType::Request => {
                 let (&destination_hash, rest) = data.split_first()?;
                 let (&source_hash, rest) = rest.split_first()?;
-                let (&cipher_mac, rest) = rest.split_first_chunk::<CIPHER_MAC_SIZE>()?;
                 let ciphertext = rest;
                 todo!()
             }

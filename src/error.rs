@@ -22,5 +22,7 @@ pub enum EncryptionError {
     MalformedCiphertext,
     #[error("The secret provided is malformed")]
     MalformedSecret,
+    #[error("Error generating public key: {0}")]
+    PublicKeyGeneration(&'static str),
 }
 pub type EncryptionResult<T> = Result<T, EncryptionError>;
