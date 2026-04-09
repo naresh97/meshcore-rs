@@ -135,7 +135,7 @@ impl<R: Radio, P: Platform> RadioDriver<R, P> {
 
     fn receive_raw(&mut self) {
         if self.is_ready {
-            let data = self.radio.read_data();
+            let _data = self.radio.read_data();
             self.state = RadioState::Idle;
         }
         if !matches!(self.state, RadioState::Rx) && self.radio.start_receive().is_ok() {

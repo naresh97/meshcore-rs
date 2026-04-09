@@ -65,9 +65,9 @@ impl LocalIdentity {
     ) -> [u8; PUBLIC_KEY_SIZE] {
         let mut e = [0u8; 32];
         e.copy_from_slice(&self.private[0..32]);
-        e[0] &= 248;
-        e[31] &= 63;
-        e[31] |= 64;
+        e[0] &= 0b1111_1000;
+        e[31] &= 0b11_1111;
+        e[31] |= 0b100_0000;
         let edwards = CompressedEdwardsY(other)
             .decompress()
             .expect("invalid public key");

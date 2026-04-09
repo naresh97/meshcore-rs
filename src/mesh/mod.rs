@@ -1,3 +1,5 @@
+#![allow(unused, clippy::unused_self)]
+
 mod contacts;
 mod identity;
 pub mod packet;
