@@ -42,6 +42,10 @@ pub enum Payload {
         text_message_type: TextMessageType,
         text: heapless::String<MAX_PACKET_PAYLOAD>,
     },
+    Response {
+        tag: u32,
+        payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
+    },
 }
 
 #[derive(Debug)]

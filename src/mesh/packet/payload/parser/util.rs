@@ -33,11 +33,18 @@ impl<'a> Reader<'a> {
         let b = u32::from_le_bytes(b);
         Ok(b)
     }
+
     pub fn take_le_u16(&mut self) -> ParserResult<u16> {
         let b = self.take_chunk::<2>()?;
         let b = u16::from_le_bytes(b);
         Ok(b)
     }
+
+    pub fn peek_chunk<const N: usize>(&mut self) -> Option<&[u8; N]> {
+        let (b, _) = self.0.split_first_chunk::<N>()?;
+        Some(b)
+    }
+
     pub fn rest(self) -> &'a [u8] {
         self.0
     }

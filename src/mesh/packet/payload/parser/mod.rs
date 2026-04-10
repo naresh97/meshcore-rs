@@ -67,22 +67,12 @@ impl PayloadParser {
         match payload_type {
             PayloadType::Path => Self::parse_path(source_hash, reader),
             PayloadType::Request => Self::parse_request(reader),
-            PayloadType::TextMessage => {
-                let timestamp = reader.take_le_u32()?;
-                let flags = reader.take_u8()?;
-                let text_message_type = TextMessageType::try_from(flags >> 2)?;
-                let rest = reader.rest();
-                let mut text = [0u8; MAX_PACKET_PAYLOAD];
-                text[0..(rest.len())].copy_from_slice(rest);
-                let text = CStr::from_bytes_until_nul(&text)
-                    .ok()
-                    .and_then(|text| text.to_str().ok())
-                    .ok_or(ParserError::InvalidInput)?;
-                let text: heapless::String<MAX_PACKET_PAYLOAD> = text.try_into()?;
-                Ok(Payload::TextMessage {
-                    text_message_type,
-                    text,
-                })
+            PayloadType::TextMessage => Self::parse_text_message(reader),
+            PayloadType::Response => {
+                let tag = reader.take_le_u32()?;
+                let payload = reader.rest();
+                let payload = heapless::Vec::from_slice(payload)?;
+                Ok(Payload::Response { tag, payload })
             }
             _ => Err(ParserError::InvalidInput),
         }
@@ -212,6 +202,23 @@ impl PayloadParser {
         };
         Ok(Payload::Request(request_data))
     }
+    fn parse_text_message(mut reader: Reader<'_>) -> Result<Payload, ParserError> {
+        let timestamp = reader.take_le_u32()?;
+        let flags = reader.take_u8()?;
+        let text_message_type = TextMessageType::try_from(flags >> 2)?;
+        let rest = reader.rest();
+        let mut text = [0u8; MAX_PACKET_PAYLOAD];
+        text[0..(rest.len())].copy_from_slice(rest);
+        let text = CStr::from_bytes_until_nul(&text)
+            .ok()
+            .and_then(|text| text.to_str().ok())
+            .ok_or(ParserError::InvalidInput)?;
+        let text: heapless::String<MAX_PACKET_PAYLOAD> = text.try_into()?;
+        Ok(Payload::TextMessage {
+            text_message_type,
+            text,
+        })
+    }
 }
 
 #[bitsize(4)]
@@ -232,4 +239,10 @@ enum RequestType {
     GetAccessList = 0x05,
     GetNeighbours = 0x06,
     GetOwnerInfo = 0x07,
+}
+
+#[bitsize(8)]
+#[derive(TryFromBits)]
+enum ResponseType {
+    RepeaterLoginOk,
 }
