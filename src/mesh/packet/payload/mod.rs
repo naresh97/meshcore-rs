@@ -46,6 +46,7 @@ pub enum Payload {
         tag: u32,
         payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
     },
+    AnonRequest(AnonRequestData),
 }
 
 #[derive(Debug)]
@@ -93,4 +94,21 @@ pub enum TextMessageType {
     Plain = 0,
     CliData = 1,
     SignedPlain = 2,
+}
+
+#[derive(Debug)]
+pub enum AnonRequestData {
+    Login {
+        password: heapless::String<MAX_PACKET_PAYLOAD>,
+    },
+    LoginNoPassword,
+    Regions {
+        reply_path: Path,
+    },
+    Owner {
+        reply_path: Path,
+    },
+    Basic {
+        reply_path: Path,
+    },
 }

@@ -1,3 +1,5 @@
+use heapless::CapacityError;
+
 use crate::mesh::packet::raw::MAX_PATH_SIZE;
 
 pub const MAX_PATH_LENGTH_2_BYTE_HASH: usize = MAX_PATH_SIZE / 2;
@@ -10,15 +12,15 @@ pub enum Path {
     Hash3(heapless::Vec<[u8; 3], MAX_PATH_LENGTH_3_BYTE_HASH>),
 }
 impl Path {
-    pub fn from_1_byte_slice(data: &[u8]) -> Option<Self> {
-        Some(Self::Hash1(heapless::Vec::from_slice(data).ok()?))
+    pub fn from_1_byte_slice(data: &[u8]) -> Result<Self, CapacityError> {
+        Ok(Self::Hash1(heapless::Vec::from_slice(data)?))
     }
-    pub fn from_2_byte_slice(data: &[u8]) -> Option<Self> {
+    pub fn from_2_byte_slice(data: &[u8]) -> Result<Self, CapacityError> {
         let data: &[[u8; 2]] = bytemuck::cast_slice(data);
-        Some(Self::Hash2(heapless::Vec::from_slice(data).ok()?))
+        Ok(Self::Hash2(heapless::Vec::from_slice(data)?))
     }
-    pub fn from_3_byte_slice(data: &[u8]) -> Option<Self> {
+    pub fn from_3_byte_slice(data: &[u8]) -> Result<Self, CapacityError> {
         let data: &[[u8; 3]] = bytemuck::cast_slice(data);
-        Some(Self::Hash3(heapless::Vec::from_slice(data).ok()?))
+        Ok(Self::Hash3(heapless::Vec::from_slice(data)?))
     }
 }

@@ -14,7 +14,10 @@ use crate::{
             encryption::decrypt,
             node::{NodeType, NodeTypeSet},
             path::Path,
-            payload::{ControlData, NeighbourOrdering, Payload, RequestData, TextMessageType},
+            payload::{
+                AnonRequestData, ControlData, NeighbourOrdering, Payload, RequestData,
+                TextMessageType,
+            },
             raw::{MAX_PACKET_PAYLOAD, PayloadType},
         },
         telemetry::TelemetryPermissions,
@@ -37,13 +40,64 @@ impl PayloadParser {
             | PayloadType::Request
             | PayloadType::Response
             | PayloadType::TextMessage => self.parse_encrypted(data, payload_type)?,
+            PayloadType::AnonymousRequest => self.parse_anon_request(data)?,
+            PayloadType::GroupText | PayloadType::GroupData => {
+                let mut reader = Reader::new(data);
+                let channel_hash = reader.take_u8()?;
+                let ciphertext = reader.rest();
+                todo!()
+            }
             PayloadType::Advert => todo!(),
-            PayloadType::GroupText => todo!(),
-            PayloadType::GroupData => todo!(),
-            PayloadType::AnonymousRequest => todo!(),
             PayloadType::RawCustom => todo!(),
         };
         Ok(payload)
+    }
+
+    fn parse_anon_request(&self, data: &[u8]) -> Result<Payload, ParserError> {
+        let mut reader = Reader::new(data);
+        let destination_hash = reader.take_u8()?;
+        let sender_public_key = reader.take_chunk::<PUBLIC_KEY_SIZE>()?;
+        let ciphertext = reader.rest();
+        let shared = self
+            .identity
+            .get_shared_key_with_public_key(sender_public_key);
+        let plaintext = decrypt(&shared, ciphertext)?;
+        let mut reader = Reader::new(&plaintext);
+        let timestamp = reader.take_le_u32()?;
+        let request_type = reader.take_u8()?;
+        let request_type = AnonRequestType::try_from(request_type)?;
+        let request_data = match request_type {
+            AnonRequestType::Login => {
+                let password = reader.rest();
+                let password = CStr::from_bytes_until_nul(password)
+                    .ok()
+                    .and_then(|s| s.to_str().ok())
+                    .ok_or(ParserError::InvalidInput)?;
+                let password = password.try_into()?;
+                AnonRequestData::Login { password }
+            }
+            AnonRequestType::LoginNoPassword => AnonRequestData::LoginNoPassword,
+
+            AnonRequestType::Regions | AnonRequestType::Owner | AnonRequestType::Basic => {
+                let header = reader.take_u8()?;
+                let path_count = header & 0b0011_1111;
+                let path_hash_size = (header >> 6) + 1;
+                let path_bytes = reader.take_slice((path_count * path_hash_size).into())?;
+                let reply_path = match path_hash_size {
+                    1 => Path::from_1_byte_slice(path_bytes),
+                    2 => Path::from_2_byte_slice(path_bytes),
+                    3 => Path::from_3_byte_slice(path_bytes),
+                    _ => unreachable!(),
+                }?;
+                match request_type {
+                    AnonRequestType::Regions => AnonRequestData::Regions { reply_path },
+                    AnonRequestType::Owner => AnonRequestData::Owner { reply_path },
+                    AnonRequestType::Basic => AnonRequestData::Basic { reply_path },
+                    _ => unreachable!(),
+                }
+            }
+        };
+        Ok(Payload::AnonRequest(request_data))
     }
 
     fn parse_encrypted(&self, data: &[u8], payload_type: PayloadType) -> ParserResult<Payload> {
@@ -137,12 +191,11 @@ impl PayloadParser {
         let path_hash_size = flags & 0x03;
         let rest = reader.rest();
         let path = match path_hash_size {
-            0 => Path::from_1_byte_slice(rest),
-            1 => Path::from_2_byte_slice(rest),
-            2 => Path::from_3_byte_slice(rest),
-            _ => None,
-        }
-        .ok_or(ParserError::InvalidInput)?;
+            0 => Path::from_1_byte_slice(rest)?,
+            1 => Path::from_2_byte_slice(rest)?,
+            2 => Path::from_3_byte_slice(rest)?,
+            _ => return Err(ParserError::InvalidInput),
+        };
         Ok(Payload::Trace {
             trace_tag,
             auth_code,
@@ -245,4 +298,14 @@ enum RequestType {
 #[derive(TryFromBits)]
 enum ResponseType {
     RepeaterLoginOk,
+}
+
+#[bitsize(8)]
+#[derive(TryFromBits)]
+enum AnonRequestType {
+    Login = 0x20, // ASCII space ' '
+    LoginNoPassword = 0x0,
+    Regions = 1,
+    Owner = 2,
+    Basic = 3,
 }

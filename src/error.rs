@@ -33,6 +33,7 @@ pub enum ParserError {
     InvalidInput,
     CapacityExceeded,
     VersionMismatch,
+    EncryptionError(EncryptionError),
 }
 pub type ParserResult<T> = Result<T, ParserError>;
 impl From<CapacityError> for ParserError {
@@ -43,5 +44,10 @@ impl From<CapacityError> for ParserError {
 impl From<BitsError> for ParserError {
     fn from(_: BitsError) -> Self {
         ParserError::InvalidInput
+    }
+}
+impl From<EncryptionError> for ParserError {
+    fn from(value: EncryptionError) -> Self {
+        ParserError::EncryptionError(value)
     }
 }
