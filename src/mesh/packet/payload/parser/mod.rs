@@ -1,14 +1,18 @@
 mod tests;
+mod util;
 
-use crate::mesh::{
-    contacts::Contacts,
-    identity::{LocalIdentity, RemoteIdentity},
-    packet::{
-        encryption::decrypt,
-        node::{NodeType, NodeTypeSet},
-        path::Path,
-        payload::{ControlData, Payload},
-        raw::PayloadType,
+use crate::{
+    error::{ParserError, ParserResult},
+    mesh::{
+        contacts::Contacts,
+        identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity},
+        packet::{
+            encryption::decrypt,
+            node::{NodeType, NodeTypeSet},
+            path::Path,
+            payload::{ControlData, Payload, parser::util::Reader},
+            raw::PayloadType,
+        },
     },
 };
 use bilge::prelude::*;
@@ -19,7 +23,7 @@ pub struct PayloadParser {
 }
 
 impl PayloadParser {
-    pub fn parse(&self, data: &[u8], payload_type: PayloadType) -> Option<Payload> {
+    pub fn parse(&self, data: &[u8], payload_type: PayloadType) -> ParserResult<Payload> {
         let payload = match payload_type {
             PayloadType::Trace => Self::parse_trace(data)?,
             PayloadType::Control => Self::parse_control(data)?,
@@ -35,16 +39,17 @@ impl PayloadParser {
             PayloadType::AnonymousRequest => todo!(),
             PayloadType::RawCustom => todo!(),
         };
-        Some(payload)
+        Ok(payload)
     }
 
-    fn parse_encrypted(&self, data: &[u8], payload_type: PayloadType) -> Option<Payload> {
-        let (&destination_hash, rest) = data.split_first()?;
+    fn parse_encrypted(&self, data: &[u8], payload_type: PayloadType) -> ParserResult<Payload> {
+        let mut reader = Reader::new(data);
+        let destination_hash = reader.take_u8()?;
         if destination_hash != self.identity.public[0] {
-            return Some(Payload::Undecryptable);
+            return Ok(Payload::Undecryptable);
         }
-        let (&source_hash, rest) = rest.split_first()?;
-        let ciphertext = rest;
+        let source_hash = reader.take_u8()?;
+        let ciphertext = reader.rest();
         let Some(plaintext) = self
             .contacts
             .get_matches_hash(source_hash)
@@ -52,17 +57,17 @@ impl PayloadParser {
             .flat_map(|shared| decrypt(&shared, ciphertext))
             .next()
         else {
-            return Some(Payload::Undecryptable);
+            return Ok(Payload::Undecryptable);
         };
-        let data = plaintext.as_slice();
+        let mut reader = Reader::new(plaintext.as_slice());
         match payload_type {
             PayloadType::Path => {
-                let (&path_length, rest) = data.split_first()?;
-                let (path, rest) = rest.split_at_checked(path_length.into())?;
-                let path = heapless::Vec::from_slice(path).ok()?;
-                let (&extra_type, rest) = rest.split_first()?;
-                let extra = heapless::Vec::from_slice(rest).ok()?;
-                Some(Payload::Path {
+                let path_length = reader.take_u8()?;
+                let path = reader.take_slice(path_length.into())?;
+                let path = heapless::Vec::from_slice(path)?;
+                let extra_type = reader.take_u8()?;
+                let extra = heapless::Vec::from_slice(reader.rest())?;
+                Ok(Payload::Path {
                     source_hash,
                     path,
                     extra_type,
@@ -70,84 +75,81 @@ impl PayloadParser {
                 })
             }
             PayloadType::Request => {
-                let (&timestamp, rest) = data.split_first_chunk::<4>()?;
-                let timestamp = u32::from_le_bytes(timestamp);
-                let (&request_type, rest) = rest.split_first()?;
-                let request_type = RequestType::try_from(request_type).ok()?;
+                let timestamp = reader.take_le_u32()?;
+                let request_type = reader.take_u8()?;
+                let request_type = RequestType::try_from(request_type)?;
                 todo!()
             }
-            _ => None,
+            _ => Err(ParserError::InvalidInput),
         }
     }
-    fn parse_multipart(data: &[u8]) -> Option<Payload> {
-        let (&header, rest) = data.split_first()?;
+    fn parse_multipart(data: &[u8]) -> ParserResult<Payload> {
+        let mut reader = Reader::new(data);
+        let header = reader.take_u8()?;
         let remaining_packets = header >> 4;
         let payload_type = PayloadType::from(u4::new(header & 0b1111));
-        let payload = rest;
-        Some(Payload::MultiPart {
+        let payload = reader.rest();
+        Ok(Payload::MultiPart {
             remaining_packets,
             payload_type,
-            payload: heapless::Vec::from_slice(payload).ok()?,
+            payload: heapless::Vec::from_slice(payload)?,
         })
     }
 
-    fn parse_ack(data: &[u8]) -> Option<Payload> {
-        let (&crc, _) = data.split_first_chunk::<4>()?;
-        let crc = u32::from_le_bytes(crc);
-        Some(Payload::Ack { crc })
+    fn parse_ack(data: &[u8]) -> ParserResult<Payload> {
+        let crc = Reader::new(data).take_le_u32()?;
+        Ok(Payload::Ack { crc })
     }
 
-    fn parse_control(data: &[u8]) -> Option<Payload> {
-        let (&header, rest) = data.split_first()?;
-        let (&filter, rest) = rest.split_first()?;
+    fn parse_control(data: &[u8]) -> ParserResult<Payload> {
+        let mut reader = Reader::new(data);
+        let header = reader.take_u8()?;
+        let filter = reader.take_u8()?;
         let filter = NodeTypeSet::from(filter);
-        let (&tag, rest) = rest.split_first_chunk::<4>()?;
-        let tag = u32::from_le_bytes(tag);
+        let tag = reader.take_le_u32()?;
         let control_type = ControlType::from(u4::new(header >> 4));
         let control_data = match control_type {
             ControlType::DiscoverRequest => {
                 let only_prefix = (header & 1) == 1;
-                let since = rest
-                    .split_first_chunk::<4>()
-                    .map(|(&since, _)| u32::from_le_bytes(since));
-
-                Some(ControlData::DiscoverRequest {
+                let since = reader.take_le_u32().ok();
+                ControlData::DiscoverRequest {
                     filter,
                     tag,
                     only_prefix,
                     since,
-                })
+                }
             }
             ControlType::DiscoverResponse => {
-                let node_type = NodeType::from_index(header & (0b1111))?;
-                let identity = RemoteIdentity {
-                    public: rest.try_into().ok()?,
-                };
-                Some(ControlData::DiscoverResponse {
+                let node_type =
+                    NodeType::from_index(header & (0b1111)).ok_or(ParserError::InvalidInput)?;
+                let public = reader.take_chunk::<PUBLIC_KEY_SIZE>()?;
+                let identity = RemoteIdentity { public };
+                ControlData::DiscoverResponse {
                     tag,
                     node_type,
                     identity,
-                })
+                }
             }
-            ControlType::Unknown => None,
-        }?;
-        Some(Payload::Control(control_data))
+            ControlType::Unknown => return Err(ParserError::InvalidInput),
+        };
+        Ok(Payload::Control(control_data))
     }
 
-    fn parse_trace(data: &[u8]) -> Option<Payload> {
-        let (&trace_tag, rest) = data.split_first_chunk::<4>()?;
-        let trace_tag = u32::from_le_bytes(trace_tag);
-        let (&auth_code, rest) = rest.split_first_chunk::<4>()?;
-        let auth_code = u32::from_le_bytes(auth_code);
-        let (&flags, rest) = rest.split_first()?;
+    fn parse_trace(data: &[u8]) -> ParserResult<Payload> {
+        let mut reader = Reader::new(data);
+        let trace_tag = reader.take_le_u32()?;
+        let auth_code = reader.take_le_u32()?;
+        let flags = reader.take_u8()?;
         let path_hash_size = flags & 0x03;
+        let rest = reader.rest();
         let path = match path_hash_size {
             0 => Path::from_1_byte_slice(rest),
             1 => Path::from_2_byte_slice(rest),
             2 => Path::from_3_byte_slice(rest),
             _ => None,
-        }?;
-        Some(Payload::Trace {
+        }
+        .ok_or(ParserError::InvalidInput)?;
+        Ok(Payload::Trace {
             trace_tag,
             auth_code,
             flags,
