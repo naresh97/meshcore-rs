@@ -26,18 +26,3 @@ pub enum EncryptionError {
     PublicKeyGeneration(&'static str),
 }
 pub type EncryptionResult<T> = Result<T, EncryptionError>;
-
-#[derive(Debug, Error)]
-pub enum ParserError {
-    #[error("Unexpected end was reached while parsing in {0}. Expected {2} bytes for {1}")]
-    UnexpectedEnd(&'static str, &'static str, i32),
-    #[error(
-        "Capacity exceeded in {0}. Attempted to store an array {1} that exceeds the specified capacity {2}"
-    )]
-    ExceedsCapacity(&'static str, &'static str, usize),
-    #[error("Error while parsing the bits for {1} in {0}")]
-    BitParsingError(&'static str, &'static str),
-    #[error("A payload was provided that is yet undefined")]
-    UndefinedPayload,
-}
-pub type ParserResult<T> = Result<T, ParserError>;
