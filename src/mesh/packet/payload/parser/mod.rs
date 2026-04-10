@@ -1,6 +1,7 @@
 mod tests;
 mod util;
 
+use core::ffi::CStr;
 use util::Reader;
 
 use crate::{
@@ -12,8 +13,8 @@ use crate::{
             encryption::decrypt,
             node::{NodeType, NodeTypeSet},
             path::Path,
-            payload::{ControlData, NeighbourOrdering, Payload, RequestData},
-            raw::PayloadType,
+            payload::{ControlData, NeighbourOrdering, Payload, RequestData, TextMessageType},
+            raw::{MAX_PACKET_PAYLOAD, PayloadType},
         },
         telemetry::TelemetryPermissions,
     },
@@ -66,6 +67,23 @@ impl PayloadParser {
         match payload_type {
             PayloadType::Path => Self::parse_path(source_hash, reader),
             PayloadType::Request => Self::parse_request(reader),
+            PayloadType::TextMessage => {
+                let timestamp = reader.take_le_u32()?;
+                let flags = reader.take_u8()?;
+                let text_message_type = TextMessageType::try_from(flags >> 2)?;
+                let rest = reader.rest();
+                let mut text = [0u8; MAX_PACKET_PAYLOAD];
+                text[0..(rest.len())].copy_from_slice(rest);
+                let text = CStr::from_bytes_until_nul(&text)
+                    .ok()
+                    .and_then(|text| text.to_str().ok())
+                    .ok_or(ParserError::InvalidInput)?;
+                let text: heapless::String<MAX_PACKET_PAYLOAD> = text.try_into()?;
+                Ok(Payload::TextMessage {
+                    text_message_type,
+                    text,
+                })
+            }
             _ => Err(ParserError::InvalidInput),
         }
     }

@@ -38,6 +38,10 @@ pub enum Payload {
         extra: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
     },
     Request(RequestData),
+    TextMessage {
+        text_message_type: TextMessageType,
+        text: heapless::String<MAX_PACKET_PAYLOAD>,
+    },
 }
 
 #[derive(Debug)]
@@ -77,4 +81,12 @@ pub enum NeighbourOrdering {
     OldestToNewest = 1,
     StrongestToWeakest = 2,
     WeakestToStrongest = 3,
+}
+
+#[bitsize(8)]
+#[derive(Debug, TryFromBits)]
+pub enum TextMessageType {
+    Plain = 0,
+    CliData = 1,
+    SignedPlain = 2,
 }
