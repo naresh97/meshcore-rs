@@ -1,6 +1,7 @@
 mod tests;
 mod util;
 
+use bilge::prelude::*;
 use core::ffi::CStr;
 use util::Reader;
 
@@ -19,7 +20,6 @@ use crate::{
         telemetry::TelemetryPermissions,
     },
 };
-use bilge::prelude::*;
 
 pub struct PayloadParser {
     pub(crate) identity: LocalIdentity,
