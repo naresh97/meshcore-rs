@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Nareshkumar Rao"]
+repository = "https://github.com/naresh97/meshcore-rs"
+description = "An implementation of the MeshCore protocol in Rust"
 
 [dependencies]
 aes = "0.8.4"
