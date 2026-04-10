@@ -6,6 +6,7 @@ pub mod packet;
 pub mod preferences;
 pub mod queue;
 mod tables;
+mod telemetry;
 
 use core::{
     marker::PhantomData,

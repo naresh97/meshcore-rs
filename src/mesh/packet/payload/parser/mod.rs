@@ -1,6 +1,8 @@
 mod tests;
 mod util;
 
+use util::Reader;
+
 use crate::{
     error::{ParserError, ParserResult},
     mesh::{
@@ -10,9 +12,10 @@ use crate::{
             encryption::decrypt,
             node::{NodeType, NodeTypeSet},
             path::Path,
-            payload::{ControlData, Payload, parser::util::Reader},
+            payload::{ControlData, NeighbourOrdering, Payload, RequestData},
             raw::PayloadType,
         },
+        telemetry::TelemetryPermissions,
     },
 };
 use bilge::prelude::*;
@@ -61,25 +64,8 @@ impl PayloadParser {
         };
         let mut reader = Reader::new(plaintext.as_slice());
         match payload_type {
-            PayloadType::Path => {
-                let path_length = reader.take_u8()?;
-                let path = reader.take_slice(path_length.into())?;
-                let path = heapless::Vec::from_slice(path)?;
-                let extra_type = reader.take_u8()?;
-                let extra = heapless::Vec::from_slice(reader.rest())?;
-                Ok(Payload::Path {
-                    source_hash,
-                    path,
-                    extra_type,
-                    extra,
-                })
-            }
-            PayloadType::Request => {
-                let timestamp = reader.take_le_u32()?;
-                let request_type = reader.take_u8()?;
-                let request_type = RequestType::try_from(request_type)?;
-                todo!()
-            }
+            PayloadType::Path => Self::parse_path(source_hash, reader),
+            PayloadType::Request => Self::parse_request(reader),
             _ => Err(ParserError::InvalidInput),
         }
     }
@@ -155,6 +141,58 @@ impl PayloadParser {
             flags,
             path,
         })
+    }
+    fn parse_path(source_hash: u8, mut reader: Reader<'_>) -> Result<Payload, ParserError> {
+        let path_length = reader.take_u8()?;
+        let path = reader.take_slice(path_length.into())?;
+        let path = heapless::Vec::from_slice(path)?;
+        let extra_type = reader.take_u8()?;
+        let extra = heapless::Vec::from_slice(reader.rest())?;
+        Ok(Payload::Path {
+            source_hash,
+            path,
+            extra_type,
+            extra,
+        })
+    }
+    fn parse_request(mut reader: Reader<'_>) -> Result<Payload, ParserError> {
+        let timestamp = reader.take_le_u32()?;
+        let request_type = reader.take_u8()?;
+        let request_type = RequestType::try_from(request_type)?;
+        let request_data = match request_type {
+            RequestType::GetStatus => RequestData::GetStatus,
+            RequestType::GetTelemetryData => {
+                let permissions = reader.take_u8()?;
+                let permissions = TelemetryPermissions::from(!permissions);
+                RequestData::GetTelemetryData(permissions)
+            }
+            RequestType::GetAccessList => {
+                let _reserved = reader.take_chunk::<2>()?;
+                RequestData::GetAccessList
+            }
+            RequestType::GetNeighbours => {
+                let version = reader.take_u8()?;
+                match version {
+                    0 => {
+                        let count = reader.take_u8()?;
+                        let offset = reader.take_le_u16()?;
+                        let order_by = NeighbourOrdering::try_from(reader.take_u8()?)?;
+                        let pubkey_trimmed_length = reader.take_u8()?;
+                        let _random_bytes = reader.take_chunk::<4>()?;
+                        RequestData::GetNeighbours {
+                            count,
+                            offset,
+                            order_by,
+                            pubkey_trimmed_length,
+                        }
+                    }
+                    _ => return Err(ParserError::VersionMismatch),
+                }
+            }
+            RequestType::GetOwnerInfo => RequestData::GetOwnerInfo,
+            RequestType::KeepAlive => RequestData::KeepAlive,
+        };
+        Ok(Payload::Request(request_data))
     }
 }
 

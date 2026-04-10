@@ -32,6 +32,7 @@ pub enum ParserError {
     UnexpectedEof,
     InvalidInput,
     CapacityExceeded,
+    VersionMismatch,
 }
 pub type ParserResult<T> = Result<T, ParserError>;
 impl From<CapacityError> for ParserError {

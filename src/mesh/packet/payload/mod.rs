@@ -1,7 +1,5 @@
 mod parser;
 
-use bilge::prelude::*;
-
 use crate::mesh::{
     contacts::Contacts,
     identity::{LocalIdentity, RemoteIdentity},
@@ -11,7 +9,9 @@ use crate::mesh::{
         path::Path,
         raw::{MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
     },
+    telemetry::TelemetryPermissions,
 };
+use bilge::prelude::*;
 
 #[derive(Debug)]
 pub enum Payload {
@@ -37,6 +37,7 @@ pub enum Payload {
         extra_type: u8,
         extra: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
     },
+    Request(RequestData),
 }
 
 #[derive(Debug)]
@@ -52,4 +53,28 @@ pub enum ControlData {
         node_type: NodeType,
         identity: RemoteIdentity,
     },
+}
+
+#[derive(Debug)]
+pub enum RequestData {
+    GetStatus,
+    GetTelemetryData(TelemetryPermissions),
+    GetAccessList,
+    GetNeighbours {
+        count: u8,
+        offset: u16,
+        order_by: NeighbourOrdering,
+        pubkey_trimmed_length: u8,
+    },
+    GetOwnerInfo,
+    KeepAlive,
+}
+
+#[bitsize(8)]
+#[derive(Debug, TryFromBits)]
+pub enum NeighbourOrdering {
+    NewestToOldest = 0,
+    OldestToNewest = 1,
+    StrongestToWeakest = 2,
+    WeakestToStrongest = 3,
 }
