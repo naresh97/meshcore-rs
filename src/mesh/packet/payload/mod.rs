@@ -47,6 +47,11 @@ pub enum Payload {
         payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
     },
     AnonRequest(AnonRequestData),
+    GroupText {
+        timestamp: u32,
+        message: heapless::String<MAX_PACKET_PAYLOAD>,
+        text_message_type: TextMessageType,
+    },
 }
 
 #[derive(Debug)]

@@ -8,10 +8,10 @@ use util::Reader;
 use crate::{
     error::{ParserError, ParserResult},
     mesh::{
-        contacts::Contacts,
+        contacts::{self, Contacts},
         identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity},
         packet::{
-            encryption::decrypt,
+            encryption::{decrypt, decrypt_with_channel_secret},
             node::{NodeType, NodeTypeSet},
             path::Path,
             payload::{
@@ -41,16 +41,41 @@ impl PayloadParser {
             | PayloadType::Response
             | PayloadType::TextMessage => self.parse_encrypted(data, payload_type)?,
             PayloadType::AnonymousRequest => self.parse_anon_request(data)?,
-            PayloadType::GroupText | PayloadType::GroupData => {
-                let mut reader = Reader::new(data);
-                let channel_hash = reader.take_u8()?;
-                let ciphertext = reader.rest();
-                todo!()
-            }
+            PayloadType::GroupText => self.parse_group_text(data)?,
             PayloadType::Advert => todo!(),
-            PayloadType::RawCustom => todo!(),
+            PayloadType::RawCustom | PayloadType::GroupData => todo!(),
         };
         Ok(payload)
+    }
+
+    fn parse_group_text(&self, data: &[u8]) -> Result<Payload, ParserError> {
+        let mut reader = Reader::new(data);
+        let channel_hash = reader.take_u8()?;
+        let ciphertext = reader.rest();
+        let plaintext = self
+            .contacts
+            .get_matching_channels(channel_hash)
+            .find_map(|c| decrypt_with_channel_secret(&c.secret, ciphertext).ok());
+        let Some(plaintext) = plaintext else {
+            return Ok(Payload::Undecryptable);
+        };
+        let mut reader = Reader::new(&plaintext);
+        let timestamp = reader.take_le_u32()?;
+        let flags = reader.take_u8()?;
+        let text_message_type = TextMessageType::try_from(flags >> 2)?;
+        let mut message = [0u8; MAX_PACKET_PAYLOAD];
+        let rest = reader.rest();
+        message[..(rest.len())].copy_from_slice(rest);
+        let message = CStr::from_bytes_until_nul(&message)
+            .ok()
+            .and_then(|s| s.to_str().ok())
+            .and_then(|s| heapless::String::<MAX_PACKET_PAYLOAD>::try_from(s).ok())
+            .ok_or(ParserError::InvalidInput)?;
+        Ok(Payload::GroupText {
+            timestamp,
+            text_message_type,
+            message,
+        })
     }
 
     fn parse_anon_request(&self, data: &[u8]) -> Result<Payload, ParserError> {
@@ -110,8 +135,8 @@ impl PayloadParser {
         let ciphertext = reader.rest();
         let Some(plaintext) = self
             .contacts
-            .get_matches_hash(source_hash)
-            .map(|id| self.identity.get_shared_key(&id))
+            .get_matching_nodes(source_hash)
+            .map(|id| self.identity.get_shared_key(id))
             .flat_map(|shared| decrypt(&shared, ciphertext))
             .next()
         else {
