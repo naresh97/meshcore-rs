@@ -1,9 +1,7 @@
 mod tests;
-mod util;
 
 use bilge::prelude::*;
 use core::ffi::CStr;
-use util::Reader;
 
 use crate::{
     error::{ParserError, ParserResult},
@@ -11,6 +9,7 @@ use crate::{
         contacts::{self, Contacts},
         identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity, SIGNATURE_SIZE},
         packet::{
+            MAX_PACKET_PAYLOAD, PayloadType,
             advert::{self},
             encryption::{decrypt, decrypt_with_channel_secret},
             node::{NodeType, NodeTypeSet},
@@ -19,11 +18,11 @@ use crate::{
                 AnonRequestData, ControlData, NeighbourOrdering, Payload, RequestData,
                 TextMessageType,
             },
-            raw::{MAX_PACKET_PAYLOAD, PayloadType},
         },
         telemetry::TelemetryPermissions,
     },
     sensor::GpsLocation,
+    utils::Reader,
 };
 
 pub struct PayloadParser {

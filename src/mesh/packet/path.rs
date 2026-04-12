@@ -1,6 +1,6 @@
 use heapless::CapacityError;
 
-use crate::mesh::packet::raw::MAX_PATH_SIZE;
+use crate::mesh::packet::MAX_PATH_SIZE;
 
 pub const MAX_PATH_LENGTH_2_BYTE_HASH: usize = MAX_PATH_SIZE / 2;
 pub const MAX_PATH_LENGTH_3_BYTE_HASH: usize = MAX_PATH_SIZE / 3;

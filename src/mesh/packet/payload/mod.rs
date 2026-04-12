@@ -10,7 +10,7 @@ use crate::{
             encryption::decrypt,
             node::{NodeType, NodeTypeSet},
             path::Path,
-            raw::{MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
+            {MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
         },
         telemetry::TelemetryPermissions,
     },

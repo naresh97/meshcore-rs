@@ -1,4 +1,4 @@
-use crate::mesh::packet::{payload::Payload, raw::MAX_PACKET_PAYLOAD};
+use crate::mesh::packet::{MAX_PACKET_PAYLOAD, payload::Payload};
 
 pub struct PayloadSerializer {}
 impl PayloadSerializer {

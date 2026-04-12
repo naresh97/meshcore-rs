@@ -16,6 +16,7 @@ mod mesh;
 mod platform;
 mod radio;
 mod sensor;
+mod utils;
 
 use core::{marker::PhantomData, time::Duration};
 

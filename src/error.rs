@@ -37,6 +37,7 @@ pub enum ParserError {
     CapacityExceeded,
     VersionMismatch,
     EncryptionError(EncryptionError),
+    UnsupportedVersion,
 }
 pub type ParserResult<T> = Result<T, ParserError>;
 impl From<CapacityError> for ParserError {

@@ -1,6 +1,6 @@
 use crate::{
     error::{EncryptionError, EncryptionResult},
-    mesh::{identity::PUBLIC_KEY_SIZE, packet::raw::MAX_PACKET_PAYLOAD},
+    mesh::{identity::PUBLIC_KEY_SIZE, packet::MAX_PACKET_PAYLOAD},
 };
 
 pub const SECRET_SIZE: usize = 32;
