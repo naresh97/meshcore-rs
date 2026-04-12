@@ -16,9 +16,13 @@ pub struct LocalIdentity {
     pub public: [u8; PUBLIC_KEY_SIZE],
 }
 impl LocalIdentity {
-    pub fn sign(&self, message: &[u8]) -> [u8; SIGNATURE_SIZE] {
+    pub fn sign(&self, message: &[u8]) -> EncryptionResult<[u8; SIGNATURE_SIZE]> {
         // 1. Extract the secret scalar 'a'
-        let a = Scalar::from_bytes_mod_order(self.private[0..32].try_into().unwrap());
+        let a = Scalar::from_bytes_mod_order(
+            self.private[0..32]
+                .try_into()
+                .map_err(|_| EncryptionError::InvalidPrivateKey)?,
+        );
 
         // 2. Hash the prefix and message to get the deterministic nonce 'r'
         let mut hasher = Sha512::new();
@@ -44,7 +48,7 @@ impl LocalIdentity {
         signature[..32].copy_from_slice(&r_bytes);
         signature[32..].copy_from_slice(&s_bytes);
 
-        signature
+        Ok(signature)
     }
 
     pub fn from_private_key(private_key: &[u8; PRIVATE_KEY_SIZE]) -> Self {
@@ -62,7 +66,7 @@ impl LocalIdentity {
     pub fn get_shared_key_with_public_key(
         &self,
         other: [u8; PUBLIC_KEY_SIZE],
-    ) -> [u8; PUBLIC_KEY_SIZE] {
+    ) -> EncryptionResult<[u8; PUBLIC_KEY_SIZE]> {
         let mut e = [0u8; 32];
         e.copy_from_slice(&self.private[0..32]);
         e[0] &= 0b1111_1000;
@@ -70,13 +74,13 @@ impl LocalIdentity {
         e[31] |= 0b100_0000;
         let edwards = CompressedEdwardsY(other)
             .decompress()
-            .expect("invalid public key");
+            .ok_or(EncryptionError::InvalidPublicKey)?;
         let montgomery: MontgomeryPoint = edwards.to_montgomery();
         let shared = montgomery.mul_clamped(e);
-        shared.to_bytes()
+        Ok(shared.to_bytes())
     }
 
-    pub fn get_shared_key(&self, other: &RemoteIdentity) -> [u8; 32] {
+    pub fn get_shared_key(&self, other: &RemoteIdentity) -> EncryptionResult<[u8; 32]> {
         self.get_shared_key_with_public_key(other.public)
     }
 }
@@ -84,6 +88,50 @@ impl LocalIdentity {
 #[derive(Debug)]
 pub struct RemoteIdentity {
     pub public: [u8; PUBLIC_KEY_SIZE],
+}
+impl RemoteIdentity {
+    pub fn verify(&self, message: &[u8], signature: &[u8; SIGNATURE_SIZE]) -> EncryptionResult<()> {
+        // 1. Split the signature into R and S bytes
+        let mut r_bytes = [0u8; 32];
+        r_bytes.copy_from_slice(&signature[..32]);
+
+        let mut s_bytes = [0u8; 32];
+        s_bytes.copy_from_slice(&signature[32..]);
+
+        // 2. Decompress the public key 'A'
+        // If the public key is not a valid point on the curve, decompression fails.
+        let a_point = CompressedEdwardsY(self.public)
+            .decompress()
+            .ok_or(EncryptionError::InvalidPublicKey)?;
+
+        // 3. Decompress the signature point 'R'
+        let r_point = CompressedEdwardsY(r_bytes)
+            .decompress()
+            .ok_or(EncryptionError::InvalidSignature)?;
+
+        // 4. Parse the signature scalar 'S'
+        // Strict Ed25519 requires S to be canonical (S < order) to prevent signature malleability.
+        let s_opt: Option<Scalar> = Scalar::from_canonical_bytes(s_bytes).into();
+        let s_scalar = s_opt.ok_or(EncryptionError::InvalidSignature)?;
+
+        // 5. Calculate the challenge 'hram' (must match the signing process exactly)
+        let mut hasher = Sha512::new();
+        hasher.update(r_bytes);
+        hasher.update(self.public);
+        hasher.update(message);
+        let hram = Scalar::from_bytes_mod_order_wide(&hasher.finalize().into());
+
+        // 6. Verify the core Ed25519 equation: S * B == R + hram * A
+        // We rewrite this as R == S * B - hram * A for a direct equality check.
+        let expected_r = s_scalar * ED25519_BASEPOINT_POINT - hram * a_point;
+
+        // 7. Check if the computed R matches the R from the signature
+        if expected_r == r_point {
+            Ok(())
+        } else {
+            Err(EncryptionError::InvalidSignature)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -112,7 +160,7 @@ mod tests {
         let message = hex::decode(message).unwrap();
         let private = hex::decode(PRIVATE_TEST).unwrap();
         let identity = LocalIdentity::from_private_key(&private.try_into().unwrap());
-        let signature = identity.sign(&message);
+        let signature = identity.sign(&message).unwrap();
         let expected = "202c7edfa018287723622ab7a7df150c032e82e4636e31a68b7c543360a62a2707ec4e2d838740f7e5152b60bdcc8ac38298294205b3a921594b3339e08d6a09";
         let expected = hex::decode(expected).unwrap();
         assert_eq!(expected, signature);
@@ -128,7 +176,9 @@ mod tests {
         let private = hex::decode(PRIVATE_TEST).unwrap();
         let identity = LocalIdentity::from_private_key(&private.try_into().unwrap());
 
-        let shared = identity.get_shared_key_with_public_key(other.try_into().unwrap());
+        let shared = identity
+            .get_shared_key_with_public_key(other.try_into().unwrap())
+            .unwrap();
         let plaintext = decrypt(&shared, &ciphertext).unwrap();
         dbg!(hex::encode(&plaintext));
 
@@ -146,7 +196,9 @@ mod tests {
         let identity = LocalIdentity::from_private_key(&private.try_into().unwrap());
         let other = "d382cb99ac49fa97e3f2a52774582e57996653e873de45b9ed68318e5d7b0420";
         let other = hex::decode(other).unwrap();
-        let shared = identity.get_shared_key_with_public_key(other.try_into().unwrap());
+        let shared = identity
+            .get_shared_key_with_public_key(other.try_into().unwrap())
+            .unwrap();
         let ciphertext = encrypt(&shared, &plaintext).unwrap();
         let expected = "3d622e1984b69ad551282a0ddc33c865edf5";
         let expected = hex::decode(expected).unwrap();

@@ -9,8 +9,9 @@ use crate::{
     error::{ParserError, ParserResult},
     mesh::{
         contacts::{self, Contacts},
-        identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity},
+        identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity, SIGNATURE_SIZE},
         packet::{
+            advert::{self},
             encryption::{decrypt, decrypt_with_channel_secret},
             node::{NodeType, NodeTypeSet},
             path::Path,
@@ -22,6 +23,7 @@ use crate::{
         },
         telemetry::TelemetryPermissions,
     },
+    sensor::GpsLocation,
 };
 
 pub struct PayloadParser {
@@ -42,7 +44,58 @@ impl PayloadParser {
             | PayloadType::TextMessage => self.parse_encrypted(data, payload_type)?,
             PayloadType::AnonymousRequest => self.parse_anon_request(data)?,
             PayloadType::GroupText => self.parse_group_text(data)?,
-            PayloadType::Advert => todo!(),
+            PayloadType::Advert => {
+                let mut reader = Reader::new(data);
+                let public_key = reader.take_chunk::<PUBLIC_KEY_SIZE>()?;
+                let timestamp = reader.take_le_u32()?;
+                let signature = reader.take_chunk::<SIGNATURE_SIZE>()?;
+                let app_data = reader.rest();
+                advert::verify_signature(&public_key, &signature, timestamp, app_data)?;
+                let mut reader = Reader::new(app_data);
+                let flags = reader.take_u8()?;
+                let flags = AdvertFeatures::from(flags);
+                let location = if flags.has_location() {
+                    let latitude = reader.take_le_i32()?;
+                    let longitude = reader.take_le_i32()?;
+                    Some(GpsLocation {
+                        latitude,
+                        longitude,
+                    })
+                } else {
+                    None
+                };
+                let extra_1 = if flags.has_feature1() {
+                    Some(reader.take_le_u16()?)
+                } else {
+                    None
+                };
+                let extra_2 = if flags.has_feature2() {
+                    Some(reader.take_le_u16()?)
+                } else {
+                    None
+                };
+                let name = if flags.has_name() {
+                    let rest = reader.rest();
+                    let mut name = [0u8; MAX_PACKET_PAYLOAD];
+                    name[..(rest.len())].copy_from_slice(rest);
+                    let name = CStr::from_bytes_until_nul(&name)
+                        .ok()
+                        .and_then(|cstr| cstr.to_str().ok())
+                        .and_then(|s| heapless::String::<MAX_PACKET_PAYLOAD>::try_from(s).ok())
+                        .ok_or(ParserError::InvalidInput)?;
+                    Some(name)
+                } else {
+                    None
+                };
+                Payload::Advert {
+                    id: RemoteIdentity { public: public_key },
+                    timestamp,
+                    location,
+                    name,
+                    extra_1,
+                    extra_2,
+                }
+            }
             PayloadType::RawCustom | PayloadType::GroupData => todo!(),
         };
         Ok(payload)
@@ -85,7 +138,8 @@ impl PayloadParser {
         let ciphertext = reader.rest();
         let shared = self
             .identity
-            .get_shared_key_with_public_key(sender_public_key);
+            .get_shared_key_with_public_key(sender_public_key)
+            .unwrap();
         let plaintext = decrypt(&shared, ciphertext)?;
         let mut reader = Reader::new(&plaintext);
         let timestamp = reader.take_le_u32()?;
@@ -136,7 +190,7 @@ impl PayloadParser {
         let Some(plaintext) = self
             .contacts
             .get_matching_nodes(source_hash)
-            .map(|id| self.identity.get_shared_key(id))
+            .filter_map(|id| self.identity.get_shared_key(id).ok())
             .flat_map(|shared| decrypt(&shared, ciphertext))
             .next()
         else {
@@ -333,4 +387,14 @@ enum AnonRequestType {
     Regions = 1,
     Owner = 2,
     Basic = 3,
+}
+
+#[bitsize(8)]
+#[derive(FromBits)]
+struct AdvertFeatures {
+    _reserved: u4,
+    has_location: bool,
+    has_feature1: bool,
+    has_feature2: bool,
+    has_name: bool,
 }

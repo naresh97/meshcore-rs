@@ -1,3 +1,4 @@
+mod advert;
 pub mod encryption;
 mod node;
 mod path;
@@ -68,7 +69,8 @@ impl Packet {
             message.extend_from_slice(&timestamp);
             message.extend_from_slice(&data);
             identity.sign(&message)
-        };
+        }
+        .unwrap();
         payload.extend(signature);
         payload.extend(data);
         payload.resize_default(MAX_PACKET_PAYLOAD);

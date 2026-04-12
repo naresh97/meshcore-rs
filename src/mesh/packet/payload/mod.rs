@@ -1,15 +1,18 @@
 mod parser;
 
-use crate::mesh::{
-    contacts::Contacts,
-    identity::{LocalIdentity, RemoteIdentity},
-    packet::{
-        encryption::decrypt,
-        node::{NodeType, NodeTypeSet},
-        path::Path,
-        raw::{MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
+use crate::{
+    mesh::{
+        contacts::Contacts,
+        identity::{LocalIdentity, RemoteIdentity},
+        packet::{
+            encryption::decrypt,
+            node::{NodeType, NodeTypeSet},
+            path::Path,
+            raw::{MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
+        },
+        telemetry::TelemetryPermissions,
     },
-    telemetry::TelemetryPermissions,
+    sensor::GpsLocation,
 };
 use bilge::prelude::*;
 
@@ -51,6 +54,14 @@ pub enum Payload {
         timestamp: u32,
         message: heapless::String<MAX_PACKET_PAYLOAD>,
         text_message_type: TextMessageType,
+    },
+    Advert {
+        id: RemoteIdentity,
+        timestamp: u32,
+        location: Option<GpsLocation>,
+        name: Option<heapless::String<MAX_PACKET_PAYLOAD>>,
+        extra_1: Option<u16>,
+        extra_2: Option<u16>,
     },
 }
 

@@ -33,6 +33,11 @@ impl<'a> Reader<'a> {
         let b = u32::from_le_bytes(b);
         Ok(b)
     }
+    pub fn take_le_i32(&mut self) -> ParserResult<i32> {
+        let b = self.take_chunk::<4>()?;
+        let b = i32::from_le_bytes(b);
+        Ok(b)
+    }
 
     pub fn take_le_u16(&mut self) -> ParserResult<u16> {
         let b = self.take_chunk::<2>()?;

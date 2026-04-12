@@ -24,6 +24,9 @@ pub enum EncryptionError {
     MalformedCiphertext,
     //The secret provided is malformed"
     MalformedSecret,
+    InvalidSignature,
+    InvalidPublicKey,
+    InvalidPrivateKey,
 }
 pub type EncryptionResult<T> = Result<T, EncryptionError>;
 
