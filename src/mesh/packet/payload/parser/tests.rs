@@ -154,11 +154,11 @@ fn parse_text_message() {
         contacts: Contacts::new(),
     };
 
-    parser.contacts.insert_node(
-        dehex("255100a473caaeecb8e685ba6d8582abaa5761d63f73b83382c9640d237db580")
+    parser.contacts.insert_node(RemoteIdentity {
+        public: dehex("255100a473caaeecb8e685ba6d8582abaa5761d63f73b83382c9640d237db580")
             .try_into()
             .unwrap(),
-    );
+    });
     let payload = dehex("D3255365327C88F64780F6EFAE4747F8598D425D330266F0C7AEEEED8923FF59D9DE1DB6");
     let payload = parser.parse(&payload, PayloadType::TextMessage).unwrap();
 
@@ -184,6 +184,7 @@ fn parse_group_text() {
         timestamp,
         message,
         text_message_type,
+        channel,
     } = parser.parse(&payload, PayloadType::GroupText).unwrap()
     else {
         panic!()

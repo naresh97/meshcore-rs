@@ -54,11 +54,14 @@ impl PayloadParser {
         let mut reader = Reader::new(data);
         let channel_hash = reader.take_u8()?;
         let ciphertext = reader.rest();
-        let plaintext = self
+        let Some((plaintext, channel)) = self
             .contacts
             .get_matching_channels(channel_hash)
-            .find_map(|c| decrypt_with_channel_secret(&c.secret, ciphertext).ok());
-        let Some(plaintext) = plaintext else {
+            .find_map(|channel| {
+                let plaintext = decrypt_with_channel_secret(&channel.secret, ciphertext).ok()?;
+                Some((plaintext, channel.clone()))
+            })
+        else {
             return Ok(Payload::Undecryptable);
         };
         let mut reader = Reader::new(&plaintext);
@@ -74,6 +77,7 @@ impl PayloadParser {
             .and_then(|s| heapless::String::<MAX_PACKET_PAYLOAD>::try_from(s).ok())
             .ok_or(ParserError::InvalidInput)?;
         Ok(Payload::GroupText {
+            channel,
             timestamp,
             text_message_type,
             message,
@@ -136,12 +140,14 @@ impl PayloadParser {
         }
         let source_hash = reader.take_u8()?;
         let ciphertext = reader.rest();
-        let Some(plaintext) = self
-            .contacts
-            .get_matching_nodes_iter(source_hash)
-            .filter_map(|id| self.identity.get_shared_key_with_public_key(*id).ok())
-            .flat_map(|shared| decrypt(&shared, ciphertext))
-            .next()
+        let Some((id, plaintext)) =
+            self.contacts
+                .get_matching_nodes_iter(source_hash)
+                .find_map(|id| {
+                    let shared = self.identity.get_shared_key(id).ok()?;
+                    let plaintext = decrypt(&shared, ciphertext).ok()?;
+                    Some((id.clone(), plaintext))
+                })
         else {
             return Ok(Payload::Undecryptable);
         };

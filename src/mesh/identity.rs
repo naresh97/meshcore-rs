@@ -85,10 +85,11 @@ impl LocalIdentity {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RemoteIdentity {
     pub public: [u8; PUBLIC_KEY_SIZE],
 }
+
 impl RemoteIdentity {
     pub fn verify(&self, message: &[u8], signature: &[u8; SIGNATURE_SIZE]) -> EncryptionResult<()> {
         // 1. Split the signature into R and S bytes

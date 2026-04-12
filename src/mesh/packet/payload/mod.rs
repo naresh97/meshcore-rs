@@ -1,7 +1,9 @@
 mod parser;
+mod serialize;
 
 use crate::{
     mesh::{
+        channel::ChannelIdentity,
         contacts::Contacts,
         identity::{LocalIdentity, RemoteIdentity},
         packet::{
@@ -51,6 +53,7 @@ pub enum Payload {
     },
     AnonRequest(AnonRequestData),
     GroupText {
+        channel: ChannelIdentity,
         timestamp: u32,
         message: heapless::String<MAX_PACKET_PAYLOAD>,
         text_message_type: TextMessageType,

@@ -2,6 +2,7 @@ use sha2::{Digest, Sha256};
 
 pub const CHANNEL_SECRET_SIZE: usize = 16;
 
+#[derive(Debug, Clone)]
 pub struct ChannelIdentity {
     pub hash: u8,
     pub secret: [u8; CHANNEL_SECRET_SIZE],
