@@ -1,4 +1,7 @@
 {
   "editor.formatOnSave": true,
-  "rust-analyzer.check.command": "clippy"
+  "rust-analyzer.check.command": "clippy",
+  "coverage-gutters.partialHighlightDark": "rgba(255, 140, 0, 0.4)",
+  "coverage-gutters.noHighlightDark": "rgba(120, 120, 120, 0.4)",
+  "coverage-gutters.highlightdark": "rgba(0, 120, 255, 0.4)"
 }

@@ -44,58 +44,7 @@ impl PayloadParser {
             | PayloadType::TextMessage => self.parse_encrypted(data, payload_type)?,
             PayloadType::AnonymousRequest => self.parse_anon_request(data)?,
             PayloadType::GroupText => self.parse_group_text(data)?,
-            PayloadType::Advert => {
-                let mut reader = Reader::new(data);
-                let public_key = reader.take_chunk::<PUBLIC_KEY_SIZE>()?;
-                let timestamp = reader.take_le_u32()?;
-                let signature = reader.take_chunk::<SIGNATURE_SIZE>()?;
-                let app_data = reader.rest();
-                advert::verify_signature(&public_key, &signature, timestamp, app_data)?;
-                let mut reader = Reader::new(app_data);
-                let flags = reader.take_u8()?;
-                let flags = AdvertFeatures::from(flags);
-                let location = if flags.has_location() {
-                    let latitude = reader.take_le_i32()?;
-                    let longitude = reader.take_le_i32()?;
-                    Some(GpsLocation {
-                        latitude,
-                        longitude,
-                    })
-                } else {
-                    None
-                };
-                let extra_1 = if flags.has_feature1() {
-                    Some(reader.take_le_u16()?)
-                } else {
-                    None
-                };
-                let extra_2 = if flags.has_feature2() {
-                    Some(reader.take_le_u16()?)
-                } else {
-                    None
-                };
-                let name = if flags.has_name() {
-                    let rest = reader.rest();
-                    let mut name = [0u8; MAX_PACKET_PAYLOAD];
-                    name[..(rest.len())].copy_from_slice(rest);
-                    let name = CStr::from_bytes_until_nul(&name)
-                        .ok()
-                        .and_then(|cstr| cstr.to_str().ok())
-                        .and_then(|s| heapless::String::<MAX_PACKET_PAYLOAD>::try_from(s).ok())
-                        .ok_or(ParserError::InvalidInput)?;
-                    Some(name)
-                } else {
-                    None
-                };
-                Payload::Advert {
-                    id: RemoteIdentity { public: public_key },
-                    timestamp,
-                    location,
-                    name,
-                    extra_1,
-                    extra_2,
-                }
-            }
+            PayloadType::Advert => Self::parse_advert(data)?,
             PayloadType::RawCustom | PayloadType::GroupData => todo!(),
         };
         Ok(payload)
@@ -189,8 +138,8 @@ impl PayloadParser {
         let ciphertext = reader.rest();
         let Some(plaintext) = self
             .contacts
-            .get_matching_nodes(source_hash)
-            .filter_map(|id| self.identity.get_shared_key(id).ok())
+            .get_matching_nodes_iter(source_hash)
+            .filter_map(|id| self.identity.get_shared_key_with_public_key(*id).ok())
             .flat_map(|shared| decrypt(&shared, ciphertext))
             .next()
         else {
@@ -349,6 +298,59 @@ impl PayloadParser {
         Ok(Payload::TextMessage {
             text_message_type,
             text,
+        })
+    }
+
+    fn parse_advert(data: &[u8]) -> Result<Payload, ParserError> {
+        let mut reader = Reader::new(data);
+        let public_key = reader.take_chunk::<PUBLIC_KEY_SIZE>()?;
+        let timestamp = reader.take_le_u32()?;
+        let signature = reader.take_chunk::<SIGNATURE_SIZE>()?;
+        let app_data = reader.rest();
+        advert::verify_signature(&public_key, &signature, timestamp, app_data)?;
+        let mut reader = Reader::new(app_data);
+        let flags = reader.take_u8()?;
+        let flags = AdvertFeatures::from(flags);
+        let location = if flags.has_location() {
+            let latitude = reader.take_le_i32()?;
+            let longitude = reader.take_le_i32()?;
+            Some(GpsLocation {
+                latitude,
+                longitude,
+            })
+        } else {
+            None
+        };
+        let extra_1 = if flags.has_feature1() {
+            Some(reader.take_le_u16()?)
+        } else {
+            None
+        };
+        let extra_2 = if flags.has_feature2() {
+            Some(reader.take_le_u16()?)
+        } else {
+            None
+        };
+        let name = if flags.has_name() {
+            let rest = reader.rest();
+            let mut name = [0u8; MAX_PACKET_PAYLOAD];
+            name[..(rest.len())].copy_from_slice(rest);
+            let name = CStr::from_bytes_until_nul(&name)
+                .ok()
+                .and_then(|cstr| cstr.to_str().ok())
+                .and_then(|s| heapless::String::<MAX_PACKET_PAYLOAD>::try_from(s).ok())
+                .ok_or(ParserError::InvalidInput)?;
+            Some(name)
+        } else {
+            None
+        };
+        Ok(Payload::Advert {
+            id: RemoteIdentity { public: public_key },
+            timestamp,
+            location,
+            name,
+            extra_1,
+            extra_2,
         })
     }
 }
