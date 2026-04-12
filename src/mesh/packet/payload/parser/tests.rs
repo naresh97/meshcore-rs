@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use core::time;
+
 use super::*;
 use crate::mesh::{contacts::Contacts, packet::payload::parser::PayloadParser};
 
@@ -89,4 +91,39 @@ fn parse_multipart() {
     let _payload = test_parser()
         .parse(&payload, PayloadType::MultiPart)
         .unwrap();
+}
+
+#[test]
+fn parse_advert() {
+    let payload = "47B843A0309A6FB832084EE1ED43FC671B0AD2A0FB126B3E763925CF79A21C49B0254D667C46B104E5AF723DBBC1B20EC84AFB397CCF67FF38F325232AFA390E6CA0D87FD967A3501F4B4ED41153CA1268D0F3893F967A85E4344E4C034D20F7010E890292E633FCFD964E0309F09FA694202D20436173746C6563726167";
+    let payload = hex::decode(payload).unwrap();
+    let payload = test_parser().parse(&payload, PayloadType::Advert).unwrap();
+    let Payload::Advert {
+        id,
+        timestamp,
+        location,
+        name,
+        extra_1,
+        extra_2,
+    } = payload
+    else {
+        panic!()
+    };
+    assert_eq!(
+        Some("🦔 - Castlecrag"),
+        name.map(|s| s.as_str().to_string()).as_deref()
+    );
+    assert_eq!(
+        hex::decode("47B843A0309A6FB832084EE1ED43FC671B0AD2A0FB126B3E763925CF79A21C49").unwrap(),
+        id.public
+    );
+    assert_eq!(timestamp, 1_716_331_952);
+    let Some(GpsLocation {
+        latitude,
+        longitude,
+    }) = location
+    else {
+        panic!()
+    };
+    assert_eq!((latitude, longitude), (-33_803_290, 151_211_670));
 }
