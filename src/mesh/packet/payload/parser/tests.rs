@@ -3,7 +3,9 @@
 use core::time;
 
 use super::*;
-use crate::mesh::{contacts::Contacts, packet::payload::parser::PayloadParser};
+use crate::mesh::{
+    channel::ChannelIdentity, contacts::Contacts, packet::payload::parser::PayloadParser,
+};
 
 fn test_parser() -> PayloadParser {
     PayloadParser {
@@ -170,4 +172,23 @@ fn parse_text_message() {
     };
     assert!(matches!(text_message_type, TextMessageType::Plain));
     assert_eq!("Rust is cool!", text);
+}
+
+#[test]
+fn parse_group_text() {
+    let mut parser = test_parser();
+    let id = ChannelIdentity::from_hashtag("#test");
+    parser.contacts.insert_channel(id);
+    let payload = dehex("D96A8977303734A72FEAD4904178434951288D14B203E4E8F0B9B945F55EC50FDA81B5");
+    let Payload::GroupText {
+        timestamp,
+        message,
+        text_message_type,
+    } = parser.parse(&payload, PayloadType::GroupText).unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!("Yuzu43: test", message);
+    assert!(matches!(text_message_type, TextMessageType::Plain));
+    assert_eq!(1_776_024_490, timestamp);
 }

@@ -3,7 +3,7 @@
 use heapless::CapacityError;
 
 use crate::mesh::{
-    channel::ChannelIdentity,
+    channel::{CHANNEL_SECRET_SIZE, ChannelIdentity},
     identity::{PUBLIC_KEY_SIZE, RemoteIdentity},
 };
 
@@ -11,6 +11,7 @@ const NODE_LIST_SIZE: usize = 2usize.pow(8);
 
 pub struct Contacts {
     nodes: heapless::Vec<[u8; PUBLIC_KEY_SIZE], NODE_LIST_SIZE>,
+    channels: heapless::Vec<ChannelIdentity, NODE_LIST_SIZE>,
 }
 
 impl Contacts {
@@ -24,6 +25,15 @@ impl Contacts {
         let end = start + count;
         self.nodes[start..end].iter()
     }
+
+    pub fn get_matching_channels(&self, hash: u8) -> impl Iterator<Item = &ChannelIdentity> {
+        let start = self.channels.partition_point(|k| k.hash < hash);
+        let remainder = &self.channels[start..];
+        let count = remainder.partition_point(|k| k.hash <= hash);
+        let end = start + count;
+        self.channels[start..end].iter()
+    }
+
     pub fn insert_node(&mut self, public_key: [u8; PUBLIC_KEY_SIZE]) -> Result<(), CapacityError> {
         let pos = self.nodes.partition_point(|k| k[0] < public_key[0]);
         self.nodes
@@ -32,13 +42,23 @@ impl Contacts {
         Ok(())
     }
 
-    pub fn get_matching_channels(&self, hash: u8) -> impl Iterator<Item = &ChannelIdentity> {
-        [].into_iter()
+    pub fn insert_channel(
+        &mut self,
+        channel_identity: ChannelIdentity,
+    ) -> Result<(), CapacityError> {
+        let pos = self
+            .channels
+            .partition_point(|k| k.hash < channel_identity.hash);
+        self.channels
+            .insert(pos, channel_identity)
+            .map_err(|_| CapacityError::default())?;
+        Ok(())
     }
 
     pub fn new() -> Self {
         Self {
             nodes: heapless::Vec::new(),
+            channels: heapless::Vec::new(),
         }
     }
 }
