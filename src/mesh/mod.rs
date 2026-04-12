@@ -18,10 +18,7 @@ use heapless::mpmc::Queue;
 
 use crate::{
     error::HardwareResult,
-    mesh::{
-        identity::LocalIdentity,
-        packet::{AdvertiserType, Packet},
-    },
+    mesh::{identity::LocalIdentity, packet::Packet},
     platform::Platform,
     sensor::GpsLocation,
 };
@@ -89,12 +86,13 @@ impl<P: Platform> Mesh<P> {
     }
 
     fn self_advert_packet(&self) -> Packet {
-        Packet::create_advert::<P>(
-            &self.identity,
-            AdvertiserType::Repeater,
-            self.advert_location(),
-            self.preferences.node_name.as_deref(),
-        )
+        //Packet::create_advert::<P>(
+        //    &self.identity,
+        //    AdvertiserType::Repeater,
+        //    self.advert_location(),
+        //    self.preferences.node_name.as_deref(),
+        //)
+        todo!()
     }
 }
 

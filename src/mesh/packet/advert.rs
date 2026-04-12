@@ -1,7 +1,6 @@
-use crate::mesh::{
-    identity::{PUBLIC_KEY_SIZE, RemoteIdentity, SIGNATURE_SIZE},
-    packet::MAX_ADVERT_DATA_SIZE,
-};
+use crate::mesh::identity::{PUBLIC_KEY_SIZE, RemoteIdentity, SIGNATURE_SIZE};
+
+pub const MAX_ADVERT_DATA_SIZE: usize = 32;
 
 pub fn verify_signature(
     public_key: &[u8; PUBLIC_KEY_SIZE],
