@@ -1,5 +1,6 @@
 mod parser;
 mod serialize;
+pub use parser::PayloadParser;
 
 use crate::{
     mesh::{

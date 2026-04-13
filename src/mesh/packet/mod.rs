@@ -6,20 +6,29 @@ mod payload;
 
 use bilge::prelude::*;
 
-use crate::{error::ParserResult, mesh::packet::path::Path, utils::Reader};
+use crate::{
+    error::ParserResult,
+    mesh::{
+        contacts::Contacts,
+        identity::LocalIdentity,
+        packet::{path::Path, payload::PayloadParser},
+    },
+    utils::Reader,
+};
 
 pub const MAX_PATH_SIZE: usize = 64;
 pub const MAX_PACKET_PAYLOAD: usize = 182;
 
+#[derive(Debug)]
 pub struct Packet {
     header: Header,
     transport_codes: Option<[u16; 2]>,
     path: Path,
-    payload: heapless::Vec<u8, MAX_PACKET_PAYLOAD>,
+    payload: payload::Payload,
 }
 
 #[bitsize(8)]
-#[derive(FromBits)]
+#[derive(DebugBits, FromBits)]
 pub struct Header {
     pub route_type: RouteType,
     pub payload_type: PayloadType,
@@ -27,7 +36,7 @@ pub struct Header {
 }
 
 #[bitsize(2)]
-#[derive(FromBits, Clone, Copy)]
+#[derive(Debug, FromBits, Clone, Copy)]
 pub enum RouteType {
     TransportFlood,
     Flood,
@@ -67,7 +76,11 @@ struct PathMetadata {
 }
 
 impl Packet {
-    pub fn parse(mut data: &[u8]) -> ParserResult<Self> {
+    pub fn parse(
+        mut data: &[u8],
+        identity: &LocalIdentity,
+        contacts: &Contacts,
+    ) -> ParserResult<Self> {
         let mut reader = Reader::new(data);
         let header = reader.take_u8()?;
         let header = Header::from(header);
@@ -100,8 +113,11 @@ impl Packet {
             _ => return Err(crate::error::ParserError::InvalidInput),
         }?;
 
-        let payload = todo!();
-
+        let payload_parser = PayloadParser {
+            identity: identity.clone(),
+            contacts,
+        };
+        let payload = payload_parser.parse(reader.rest(), header.payload_type())?;
         let packet = Packet {
             header,
             transport_codes,
@@ -115,6 +131,8 @@ impl Packet {
 
 #[cfg(test)]
 mod tests {
+    use crate::mesh::packet::payload::Payload;
+
     use super::*;
 
     #[test]
@@ -130,14 +148,43 @@ mod tests {
     fn parse_packet() {
         let packet = "110D69042B6E0B7C3F2584818B3C2474328A18923E6062FB948B3D7FF2710E9E83177886160D17B886281A7D0A885AB70AD5699AED0F6844F1C3BC71D64257DE285DB3970ECC2F583D6C029CC47CDA1D082FA1FE5867DCC8866C52BAA5AFA8A31E9727405A92B07C372002A1B3CF67E0A7A2009298CB0C0377095B0048656C746563205634205270747220536F6C6172";
         let packet = hex::decode(packet).unwrap();
-        let packet = Packet::parse(&packet).unwrap();
+        let (id, contacts) = mocks();
+        let packet = Packet::parse(&packet, &id, &contacts).unwrap();
         assert!(matches!(packet.header.route_type(), RouteType::Flood));
         assert!(matches!(packet.header.payload_type(), PayloadType::Advert));
         assert_eq!(packet.header.version().as_usize(), 0);
-        assert_eq!(
-            packet.path,
-            hex::decode("69042B6E0B7C3F2584818B3C24").unwrap()
-        );
-        assert_eq!(packet.payload.as_slice(), hex::decode("74328A18923E6062FB948B3D7FF2710E9E83177886160D17B886281A7D0A885AB70AD5699AED0F6844F1C3BC71D64257DE285DB3970ECC2F583D6C029CC47CDA1D082FA1FE5867DCC8866C52BAA5AFA8A31E9727405A92B07C372002A1B3CF67E0A7A2009298CB0C0377095B0048656C746563205634205270747220536F6C6172").unwrap());
+
+        {
+            let Path::Hash1(v) = &packet.path else {
+                panic!();
+            };
+            assert_eq!(
+                v.as_slice(),
+                hex::decode("69042B6E0B7C3F2584818B3C24").unwrap()
+            );
+        }
+        let Payload::Advert {
+            id,
+            timestamp,
+            location,
+            name,
+            extra_1,
+            extra_2,
+        } = packet.payload
+        else {
+            panic!()
+        };
+        assert_eq!(name.unwrap(), "Heltec V4 Rptr Solar");
+        let location = location.unwrap();
+        assert_eq!(location.latitude, 51_170_200);
+        assert_eq!(location.longitude, 5_966_199);
+        assert_eq!(timestamp, 1_775_569_591);
+    }
+
+    fn mocks() -> (LocalIdentity, Contacts) {
+        (
+            LocalIdentity::from_private_key(&hex::decode("104B70BC64F3FDBDEC6E9A9189C40C7B6A64E5D3A91B75D423EDF879C4C082605F852A0F473307596502D95238CE1FEC32C4BEBD7D119AE73974C2BFA650A1B3").unwrap().try_into().unwrap()),
+            Contacts::new(),
+        )
     }
 }

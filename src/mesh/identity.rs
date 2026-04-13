@@ -11,6 +11,7 @@ pub const PUBLIC_KEY_SIZE: usize = 32;
 pub const SIGNATURE_SIZE: usize = 64;
 
 /// An identity created by this device, with private key known on this device.
+#[derive(Debug, Clone)]
 pub struct LocalIdentity {
     pub private: [u8; PRIVATE_KEY_SIZE],
     pub public: [u8; PUBLIC_KEY_SIZE],

@@ -25,13 +25,13 @@ use crate::{
     utils::Reader,
 };
 
-pub struct PayloadParser {
-    pub(crate) identity: LocalIdentity,
-    pub(crate) contacts: Contacts,
+pub struct PayloadParser<'a> {
+    pub identity: LocalIdentity,
+    pub contacts: &'a Contacts,
 }
 
-impl PayloadParser {
-    pub fn parse(&self, data: &[u8], payload_type: PayloadType) -> ParserResult<Payload> {
+impl PayloadParser<'_> {
+    pub fn parse(self, data: &[u8], payload_type: PayloadType) -> ParserResult<Payload> {
         let payload = match payload_type {
             PayloadType::Trace => Self::parse_trace(data)?,
             PayloadType::Control => Self::parse_control(data)?,

@@ -7,12 +7,12 @@ use crate::mesh::{
     channel::ChannelIdentity, contacts::Contacts, packet::payload::parser::PayloadParser,
 };
 
-fn test_parser() -> PayloadParser {
+fn test_parser(contacts: &Contacts) -> PayloadParser<'_> {
     PayloadParser {
             identity: LocalIdentity::from_private_key(
                 &dehex("104B70BC64F3FDBDEC6E9A9189C40C7B6A64E5D3A91B75D423EDF879C4C082605F852A0F473307596502D95238CE1FEC32C4BEBD7D119AE73974C2BFA650A1B3").try_into().unwrap(),
             ),
-            contacts: Contacts::new(),
+            contacts
         }
 }
 
@@ -28,7 +28,9 @@ fn parse_trace() {
         auth_code,
         flags,
         path,
-    } = test_parser().parse(&payload, PayloadType::Trace).unwrap()
+    } = test_parser(&Contacts::new())
+        .parse(&payload, PayloadType::Trace)
+        .unwrap()
     else {
         panic!()
     };
@@ -55,7 +57,9 @@ fn parse_control_discover_response() {
         tag,
         node_type,
         identity,
-    }) = test_parser().parse(&payload, PayloadType::Control).unwrap()
+    }) = test_parser(&Contacts::new())
+        .parse(&payload, PayloadType::Control)
+        .unwrap()
     else {
         panic!();
     };
@@ -75,7 +79,9 @@ fn parse_control_discover_request() {
         tag,
         only_prefix,
         since: Some(since),
-    }) = test_parser().parse(&payload, PayloadType::Control).unwrap()
+    }) = test_parser(&Contacts::new())
+        .parse(&payload, PayloadType::Control)
+        .unwrap()
     else {
         panic!()
     };
@@ -93,7 +99,7 @@ fn parse_multipart() {
     let payload = dehex(
         "284D0EB1C4C82936AEA94F00E39D27B628579A769F668AB266F85D188A56834C041E957C5CC533A91DA26DCED3DEF2856AD883BBB064AB7F11DEB2FC3AD4FA03642ACF23435820E7AD35D7A75C64BDED6E3444E3D75B238B3E5F158FAD2B7856F515",
     );
-    let _payload = test_parser()
+    let _payload = test_parser(&Contacts::new())
         .parse(&payload, PayloadType::MultiPart)
         .unwrap();
 }
@@ -103,7 +109,9 @@ fn parse_advert() {
     let payload = dehex(
         "47B843A0309A6FB832084EE1ED43FC671B0AD2A0FB126B3E763925CF79A21C49B0254D667C46B104E5AF723DBBC1B20EC84AFB397CCF67FF38F325232AFA390E6CA0D87FD967A3501F4B4ED41153CA1268D0F3893F967A85E4344E4C034D20F7010E890292E633FCFD964E0309F09FA694202D20436173746C6563726167",
     );
-    let payload = test_parser().parse(&payload, PayloadType::Advert).unwrap();
+    let payload = test_parser(&Contacts::new())
+        .parse(&payload, PayloadType::Advert)
+        .unwrap();
     let Payload::Advert {
         id,
         timestamp,
@@ -137,7 +145,10 @@ fn parse_advert() {
 #[test]
 fn parse_ack() {
     let payload = dehex("C6413FBE");
-    let Payload::Ack { crc } = test_parser().parse(&payload, PayloadType::Ack).unwrap() else {
+    let Payload::Ack { crc } = test_parser(&Contacts::new())
+        .parse(&payload, PayloadType::Ack)
+        .unwrap()
+    else {
         panic!()
     };
     assert_eq!(
@@ -149,9 +160,10 @@ fn parse_ack() {
 //#[test]
 fn parse_text_message() {
     todo!("Use leakable private key");
+    let mut contacts = Contacts::new();
     let mut parser = PayloadParser {
         identity: LocalIdentity::from_private_key(&dehex("").try_into().unwrap()),
-        contacts: Contacts::new(),
+        contacts: &contacts,
     };
 
     parser.contacts.insert_node(RemoteIdentity {
@@ -176,9 +188,10 @@ fn parse_text_message() {
 
 #[test]
 fn parse_group_text() {
-    let mut parser = test_parser();
+    let mut contacts = Contacts::new();
     let id = ChannelIdentity::from_hashtag("#test");
-    parser.contacts.insert_channel(id);
+    contacts.insert_channel(id);
+    let mut parser = test_parser(&contacts);
     let payload = dehex("D96A8977303734A72FEAD4904178434951288D14B203E4E8F0B9B945F55EC50FDA81B5");
     let Payload::GroupText {
         timestamp,
