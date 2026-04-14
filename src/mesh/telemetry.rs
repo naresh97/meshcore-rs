@@ -1,7 +1,7 @@
 use bilge::prelude::*;
 
 #[bitsize(8)]
-#[derive(DebugBits, FromBits)]
+#[derive(DebugBits, FromBits, Clone)]
 pub struct TelemetryPermissions {
     base: bool,
     location: bool,

@@ -1,2 +1,3 @@
-mod reader;
-pub use reader::Reader;
+mod buffer;
+pub use buffer::Reader;
+pub use buffer::Writer;

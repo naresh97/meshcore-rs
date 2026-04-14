@@ -19,7 +19,7 @@ use crate::{
 };
 use bilge::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Payload {
     Trace {
         trace_tag: u32,
@@ -69,7 +69,7 @@ pub enum Payload {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ControlData {
     DiscoverRequest {
         filter: NodeTypeSet,
@@ -84,7 +84,7 @@ pub enum ControlData {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RequestData {
     GetStatus,
     GetTelemetryData(TelemetryPermissions),
@@ -100,7 +100,7 @@ pub enum RequestData {
 }
 
 #[bitsize(8)]
-#[derive(Debug, TryFromBits)]
+#[derive(Debug, TryFromBits, Clone)]
 pub enum NeighbourOrdering {
     NewestToOldest = 0,
     OldestToNewest = 1,
@@ -109,14 +109,14 @@ pub enum NeighbourOrdering {
 }
 
 #[bitsize(8)]
-#[derive(Debug, TryFromBits)]
+#[derive(Debug, TryFromBits, Clone)]
 pub enum TextMessageType {
     Plain = 0,
     CliData = 1,
     SignedPlain = 2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AnonRequestData {
     Login {
         password: heapless::String<MAX_PACKET_PAYLOAD>,

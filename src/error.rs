@@ -55,3 +55,22 @@ impl From<EncryptionError> for ParserError {
         ParserError::EncryptionError(value)
     }
 }
+
+#[derive(Debug)]
+pub enum SerializerError {
+    CapacityExceeded,
+    EncryptionError(EncryptionError),
+}
+
+pub type SerializerResult<T> = Result<T, SerializerError>;
+
+impl From<CapacityError> for SerializerError {
+    fn from(_: CapacityError) -> Self {
+        SerializerError::CapacityExceeded
+    }
+}
+impl From<EncryptionError> for SerializerError {
+    fn from(value: EncryptionError) -> Self {
+        SerializerError::EncryptionError(value)
+    }
+}

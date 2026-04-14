@@ -4,7 +4,9 @@ use core::time;
 
 use super::*;
 use crate::mesh::{
-    channel::ChannelIdentity, contacts::Contacts, packet::payload::parser::PayloadParser,
+    channel::ChannelIdentity,
+    contacts::Contacts,
+    packet::payload::{parser::PayloadParser, serialize::PayloadSerializer},
 };
 
 fn test_parser(contacts: &Contacts) -> PayloadParser<'_> {
@@ -192,17 +194,24 @@ fn parse_group_text() {
     let id = ChannelIdentity::from_hashtag("#test");
     contacts.insert_channel(id);
     let mut parser = test_parser(&contacts);
-    let payload = dehex("D96A8977303734A72FEAD4904178434951288D14B203E4E8F0B9B945F55EC50FDA81B5");
+    let payload_bytes =
+        dehex("D96A8977303734A72FEAD4904178434951288D14B203E4E8F0B9B945F55EC50FDA81B5");
+    let payload = parser
+        .parse(&payload_bytes, PayloadType::GroupText)
+        .unwrap();
     let Payload::GroupText {
         timestamp,
         message,
         text_message_type,
         channel,
-    } = parser.parse(&payload, PayloadType::GroupText).unwrap()
+    } = payload.clone()
     else {
         panic!()
     };
     assert_eq!("Yuzu43: test", message);
     assert!(matches!(text_message_type, TextMessageType::Plain));
     assert_eq!(1_776_024_490, timestamp);
+
+    let bytes = payload.serialize().unwrap();
+    assert_eq!(bytes.as_slice(), payload_bytes.as_slice());
 }

@@ -5,7 +5,7 @@ use crate::mesh::packet::MAX_PATH_SIZE;
 pub const MAX_PATH_LENGTH_2_BYTE_HASH: usize = MAX_PATH_SIZE / 2;
 pub const MAX_PATH_LENGTH_3_BYTE_HASH: usize = MAX_PATH_SIZE / 3;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Path {
     Hash1(heapless::Vec<u8, MAX_PATH_SIZE>),
     Hash2(heapless::Vec<[u8; 2], MAX_PATH_LENGTH_2_BYTE_HASH>),
