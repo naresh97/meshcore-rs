@@ -207,6 +207,7 @@ impl PayloadParser<'_> {
                 let public = reader.take_chunk::<PUBLIC_KEY_SIZE>()?;
                 let identity = RemoteIdentity { public };
                 ControlData::DiscoverResponse {
+                    filter,
                     tag,
                     node_type,
                     identity,

@@ -53,47 +53,58 @@ fn parse_trace() {
 }
 #[test]
 fn parse_control_discover_response() {
-    let payload =
+    let payload_bytes =
         dehex("92D071650845287E613F77754F51DD72848A5A5A35DC23AAE3D49B743E296B247AA9F29202FD");
+    let payload = test_parser(&Contacts::new())
+        .parse(&payload_bytes, PayloadType::Control)
+        .unwrap();
     let Payload::Control(ControlData::DiscoverResponse {
         tag,
         node_type,
         identity,
-    }) = test_parser(&Contacts::new())
-        .parse(&payload, PayloadType::Control)
-        .unwrap()
+        filter,
+    }) = payload.clone()
     else {
         panic!();
     };
+
     assert!(matches!(node_type, NodeType::Repeater));
     assert_eq!(dehex("71650845"), tag.to_le_bytes());
     assert_eq!(
         dehex("287E613F77754F51DD72848A5A5A35DC23AAE3D49B743E296B247AA9F29202FD"),
         identity.public
     );
+    assert!(!filter.contains(NodeType::Repeater));
+    assert!(!filter.contains(NodeType::Sensor));
+
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(payload_bytes.as_slice(), serialized.as_slice());
 }
 
 #[test]
 fn parse_control_discover_request() {
-    let payload = dehex("800476501AE400000000");
+    let payload_bytes = dehex("800476501AE400000000");
+    let payload = test_parser(&Contacts::new())
+        .parse(&payload_bytes, PayloadType::Control)
+        .unwrap();
     let Payload::Control(ControlData::DiscoverRequest {
         filter,
         tag,
         only_prefix,
         since: Some(since),
-    }) = test_parser(&Contacts::new())
-        .parse(&payload, PayloadType::Control)
-        .unwrap()
+    }) = payload.clone()
     else {
         panic!()
     };
     assert!(!only_prefix);
     assert_eq!(0, since);
     assert_eq!(dehex("76501AE4"), tag.to_le_bytes());
-    assert!(filter.contains(NodeType::Repeater));
+    assert!(!filter.contains(NodeType::Repeater));
     assert!(!filter.contains(NodeType::Chat));
     assert!(!filter.contains(NodeType::Room));
     assert!(!filter.contains(NodeType::Sensor));
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(payload_bytes.as_slice(), serialized.as_slice());
 }
 
 #[test]

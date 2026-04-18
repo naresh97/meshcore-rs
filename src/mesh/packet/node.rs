@@ -18,17 +18,25 @@ impl NodeType {
             _ => None,
         }
     }
+    pub fn to_index(self) -> u8 {
+        match self {
+            NodeType::Chat => 1,
+            NodeType::Repeater => 2,
+            NodeType::Room => 3,
+            NodeType::Sensor => 4,
+        }
+    }
 }
 
 #[bitsize(8)]
 #[derive(FromBits, DebugBits, Clone, Copy)]
 pub struct NodeTypeSet {
-    is_none: bool,
-    is_chat: bool,
-    is_repeater: bool,
-    is_room: bool,
-    is_sensor: bool,
     reserved: u3,
+    is_sensor: bool,
+    is_room: bool,
+    is_repeater: bool,
+    is_chat: bool,
+    is_none: bool,
 }
 impl NodeTypeSet {
     pub fn contains(self, node_type: NodeType) -> bool {

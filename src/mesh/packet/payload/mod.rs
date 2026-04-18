@@ -79,6 +79,7 @@ pub enum ControlData {
         since: Option<u32>,
     },
     DiscoverResponse {
+        filter: NodeTypeSet,
         tag: u32,
         node_type: NodeType,
         identity: RemoteIdentity,
