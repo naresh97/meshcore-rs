@@ -27,6 +27,12 @@ pub enum EncryptionError {
     InvalidSignature,
     InvalidPublicKey,
     InvalidPrivateKey,
+    CapacityExceeded(CapacityError),
+}
+impl From<CapacityError> for EncryptionError {
+    fn from(value: CapacityError) -> Self {
+        EncryptionError::CapacityExceeded(value)
+    }
 }
 pub type EncryptionResult<T> = Result<T, EncryptionError>;
 
@@ -69,6 +75,7 @@ impl From<CapacityError> for SerializerError {
         SerializerError::CapacityExceeded
     }
 }
+
 impl From<EncryptionError> for SerializerError {
     fn from(value: EncryptionError) -> Self {
         SerializerError::EncryptionError(value)

@@ -1,3 +1,4 @@
+mod serialize;
 mod tests;
 
 use bilge::prelude::*;
@@ -15,7 +16,7 @@ use crate::{
             node::{NodeType, NodeTypeSet},
             path::Path,
             payload::{
-                AnonRequestData, ControlData, NeighbourOrdering, Payload, RequestData,
+                AdvertType, AnonRequestData, ControlData, NeighbourOrdering, Payload, RequestData,
                 TextMessageType,
             },
         },
@@ -352,6 +353,8 @@ impl PayloadParser<'_> {
         Ok(Payload::Advert {
             id: RemoteIdentity { public: public_key },
             timestamp,
+            signature,
+            advert_type: flags.advert_type(),
             location,
             name,
             extra_1,
@@ -399,7 +402,7 @@ enum AnonRequestType {
 #[bitsize(8)]
 #[derive(FromBits)]
 struct AdvertFeatures {
-    _reserved: u4,
+    advert_type: AdvertType,
     has_location: bool,
     has_feature1: bool,
     has_feature2: bool,

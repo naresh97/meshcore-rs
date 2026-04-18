@@ -1,17 +1,16 @@
 mod parser;
-mod serialize;
 pub use parser::PayloadParser;
 
 use crate::{
     mesh::{
         channel::ChannelIdentity,
         contacts::Contacts,
-        identity::{LocalIdentity, RemoteIdentity},
+        identity::{LocalIdentity, RemoteIdentity, SIGNATURE_SIZE},
         packet::{
+            MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType,
             encryption::decrypt,
             node::{NodeType, NodeTypeSet},
             path::Path,
-            {MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType},
         },
         telemetry::TelemetryPermissions,
     },
@@ -62,6 +61,8 @@ pub enum Payload {
     Advert {
         id: RemoteIdentity,
         timestamp: u32,
+        signature: [u8; SIGNATURE_SIZE],
+        advert_type: AdvertType,
         location: Option<GpsLocation>,
         name: Option<heapless::String<MAX_PACKET_PAYLOAD>>,
         extra_1: Option<u16>,
@@ -131,4 +132,15 @@ pub enum AnonRequestData {
     Basic {
         reply_path: Path,
     },
+}
+
+#[bitsize(4)]
+#[derive(Debug, FromBits, Clone)]
+pub enum AdvertType {
+    #[fallback]
+    None,
+    Chat,
+    Repeater,
+    Room,
+    Sensor,
 }

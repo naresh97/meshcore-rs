@@ -6,7 +6,7 @@ use super::*;
 use crate::mesh::{
     channel::ChannelIdentity,
     contacts::Contacts,
-    packet::payload::{parser::PayloadParser, serialize::PayloadSerializer},
+    packet::payload::parser::{PayloadParser, serialize::PayloadSerializer},
 };
 
 fn test_parser(contacts: &Contacts) -> PayloadParser<'_> {
@@ -108,11 +108,11 @@ fn parse_multipart() {
 
 #[test]
 fn parse_advert() {
-    let payload = dehex(
+    let payload_bytes = dehex(
         "47B843A0309A6FB832084EE1ED43FC671B0AD2A0FB126B3E763925CF79A21C49B0254D667C46B104E5AF723DBBC1B20EC84AFB397CCF67FF38F325232AFA390E6CA0D87FD967A3501F4B4ED41153CA1268D0F3893F967A85E4344E4C034D20F7010E890292E633FCFD964E0309F09FA694202D20436173746C6563726167",
     );
     let payload = test_parser(&Contacts::new())
-        .parse(&payload, PayloadType::Advert)
+        .parse(&payload_bytes, PayloadType::Advert)
         .unwrap();
     let Payload::Advert {
         id,
@@ -121,10 +121,15 @@ fn parse_advert() {
         name,
         extra_1,
         extra_2,
-    } = payload
+        signature,
+        advert_type,
+    } = payload.clone()
     else {
         panic!()
     };
+    assert!(matches!(advert_type, AdvertType::Repeater));
+    assert!(extra_1.is_none());
+    assert!(extra_2.is_none());
     assert_eq!(
         Some("🦔 - Castlecrag"),
         name.map(|s| s.as_str().to_string()).as_deref()
@@ -142,21 +147,30 @@ fn parse_advert() {
         panic!()
     };
     assert_eq!((latitude, longitude), (-33_803_290, 151_211_670));
+
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(
+        hex::encode(payload_bytes.as_slice()),
+        hex::encode(serialized.as_slice())
+    );
+    assert_eq!(payload_bytes.as_slice(), serialized.as_slice());
 }
 
 #[test]
 fn parse_ack() {
-    let payload = dehex("C6413FBE");
-    let Payload::Ack { crc } = test_parser(&Contacts::new())
-        .parse(&payload, PayloadType::Ack)
-        .unwrap()
-    else {
+    let payload_bytes = dehex("C6413FBE");
+    let payload = test_parser(&Contacts::new())
+        .parse(&payload_bytes, PayloadType::Ack)
+        .unwrap();
+    let Payload::Ack { crc } = payload.clone() else {
         panic!()
     };
     assert_eq!(
         u32::from_le_bytes(dehex("C6413FBE").try_into().unwrap()),
         crc
     );
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(payload_bytes.as_slice(), serialized.as_slice());
 }
 
 //#[test]
@@ -173,19 +187,25 @@ fn parse_text_message() {
             .try_into()
             .unwrap(),
     });
-    let payload = dehex("D3255365327C88F64780F6EFAE4747F8598D425D330266F0C7AEEEED8923FF59D9DE1DB6");
-    let payload = parser.parse(&payload, PayloadType::TextMessage).unwrap();
+    let payload_bytes =
+        dehex("D3255365327C88F64780F6EFAE4747F8598D425D330266F0C7AEEEED8923FF59D9DE1DB6");
+    let payload = parser
+        .parse(&payload_bytes, PayloadType::TextMessage)
+        .unwrap();
 
     let Payload::TextMessage {
         text_message_type,
         text,
-    } = payload
+    } = payload.clone()
     else {
         dbg!(payload);
         panic!();
     };
     assert!(matches!(text_message_type, TextMessageType::Plain));
     assert_eq!("Rust is cool!", text);
+
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(payload_bytes.as_slice(), serialized.as_slice());
 }
 
 #[test]
@@ -212,6 +232,6 @@ fn parse_group_text() {
     assert!(matches!(text_message_type, TextMessageType::Plain));
     assert_eq!(1_776_024_490, timestamp);
 
-    let bytes = payload.serialize().unwrap();
-    assert_eq!(bytes.as_slice(), payload_bytes.as_slice());
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(serialized.as_slice(), payload_bytes.as_slice());
 }

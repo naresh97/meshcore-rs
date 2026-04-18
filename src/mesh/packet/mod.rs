@@ -170,6 +170,8 @@ mod tests {
             name,
             extra_1,
             extra_2,
+            signature,
+            advert_type,
         } = packet.payload
         else {
             panic!()
