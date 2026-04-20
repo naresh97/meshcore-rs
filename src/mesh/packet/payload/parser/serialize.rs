@@ -5,6 +5,7 @@ use crate::{
         packet::{
             MAX_PACKET_PAYLOAD,
             encryption::encrypt_with_channel_secret,
+            path::Path,
             payload::{
                 ControlData, Payload,
                 parser::{AdvertFeatures, ControlType},
@@ -20,6 +21,7 @@ pub trait PayloadSerializer {
     fn serialize(self) -> PayloadSerializerResult;
 }
 impl PayloadSerializer for Payload {
+    #[allow(unused_variables)]
     fn serialize(self) -> PayloadSerializerResult {
         match self {
             Payload::Trace {
@@ -30,8 +32,17 @@ impl PayloadSerializer for Payload {
             } => {
                 let mut writer = Writer::new();
 
-                writer.put_le_u32(trace_tag);
+                writer.put_le_u32(trace_tag)?;
+                writer.put_le_u32(auth_code)?;
 
+                let path_hash_size: u8 = match &path {
+                    Path::Hash1(_) => 0,
+                    Path::Hash2(_) => 1,
+                    Path::Hash3(_) => 2,
+                };
+                let flags = (flags & 0b1111_1000) | path_hash_size;
+                writer.put_u8(flags)?;
+                writer.put_slice(path.as_slice())?;
                 Ok(writer.finish())
             }
             Payload::Control(control_data) => serialize_control(control_data),
@@ -101,7 +112,7 @@ fn serialize_control(control_data: ControlData) -> PayloadSerializerResult {
             writer.put_u8(filter.into())?;
             writer.put_le_u32(tag)?;
             if let Some(since) = since {
-                writer.put_le_u32(since);
+                writer.put_le_u32(since)?;
             }
             Ok(writer.finish())
         }
@@ -117,7 +128,7 @@ fn serialize_control(control_data: ControlData) -> PayloadSerializerResult {
             writer.put_u8(header)?;
             writer.put_u8(filter.into())?;
             writer.put_le_u32(tag)?;
-            writer.put_slice(&identity.public);
+            writer.put_slice(&identity.public)?;
             Ok(writer.finish())
         }
     }
@@ -159,7 +170,7 @@ fn serialize_advert(
         if let Some(extra_2) = extra_2 {
             writer.put_le_u16(extra_2)?;
         }
-        if let Some(mut name) = name {
+        if let Some(name) = name {
             writer.put_slice(name.as_bytes())?;
         }
         writer.finish()
@@ -191,7 +202,7 @@ fn serialize_group_text(
     let plaintext = plaintext.finish();
     let ciphertext = encrypt_with_channel_secret(&channel.secret, plaintext.as_slice())?;
 
-    writer.put_slice(&ciphertext);
+    writer.put_slice(&ciphertext)?;
 
     Ok(writer.finish())
 }

@@ -23,4 +23,11 @@ impl Path {
         let data: &[[u8; 3]] = bytemuck::cast_slice(data);
         Ok(Self::Hash3(heapless::Vec::from_slice(data)?))
     }
+    pub fn as_slice(&self) -> &[u8] {
+        match self {
+            Path::Hash1(vec_inner) => vec_inner.as_slice(),
+            Path::Hash2(vec_inner) => bytemuck::cast_slice(vec_inner.as_slice()),
+            Path::Hash3(vec_inner) => bytemuck::cast_slice(vec_inner.as_slice()),
+        }
+    }
 }
