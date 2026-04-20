@@ -13,7 +13,9 @@ impl<P: Platform> PacketQueue<P> {
     /// Queue up a packet
     pub fn push(&mut self, packet: Packet, priority: u8, delay: Duration) {
         let now = P::timestamp_ms();
-        self.binary_heap.push(QueuedPacket {
+
+        let _ = self.binary_heap.push(QueuedPacket {
+            // silently drop packets if queue is full
             packet,
             priority,
             scheduled_for_ms: now + (delay.as_millis() as usize),

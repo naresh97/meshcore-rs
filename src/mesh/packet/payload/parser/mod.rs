@@ -7,7 +7,7 @@ use core::ffi::CStr;
 use crate::{
     error::{ParserError, ParserResult},
     mesh::{
-        contacts::{self, Contacts},
+        contacts::Contacts,
         identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity, SIGNATURE_SIZE},
         packet::{
             MAX_PACKET_PAYLOAD, PayloadType,

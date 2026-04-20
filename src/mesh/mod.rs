@@ -1,4 +1,4 @@
-#![allow(unused, clippy::unused_self)]
+#![allow(clippy::unused_self)]
 
 mod channel;
 mod contacts;
@@ -9,12 +9,7 @@ pub mod queue;
 mod tables;
 mod telemetry;
 
-use core::{
-    marker::PhantomData,
-    time::{self, Duration},
-};
-
-use heapless::mpmc::Queue;
+use core::{marker::PhantomData, time::Duration};
 
 use crate::{
     error::HardwareResult,
@@ -36,6 +31,7 @@ pub struct Mesh<P: Platform> {
     _p: PhantomData<P>,
 }
 
+#[allow(unused)]
 impl<P: Platform> Mesh<P> {
     fn new() -> HardwareResult<Self> {
         todo!()

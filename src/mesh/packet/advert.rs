@@ -1,5 +1,5 @@
 use crate::{
-    error::{EncryptionError, EncryptionResult},
+    error::EncryptionResult,
     mesh::identity::{LocalIdentity, PUBLIC_KEY_SIZE, RemoteIdentity, SIGNATURE_SIZE},
     utils::Writer,
 };
@@ -14,9 +14,9 @@ pub fn verify_signature(
     app_data: &[u8],
 ) -> Result<(), crate::error::EncryptionError> {
     let mut message = heapless::Vec::<u8, MESSAGE_SIZE>::new();
-    message.extend_from_slice(public_key);
-    message.extend(timestamp.to_le_bytes());
-    message.extend_from_slice(app_data);
+    message.extend_from_slice(public_key)?;
+    message.extend_from_slice(&timestamp.to_le_bytes())?;
+    message.extend_from_slice(app_data)?;
     let id = RemoteIdentity {
         public: *public_key,
     };

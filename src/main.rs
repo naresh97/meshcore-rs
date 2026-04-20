@@ -7,9 +7,8 @@
 #![cfg_attr(not(test), no_std)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::doc_markdown)]
-#![allow(unused)]
-#![warn(unused_variables)]
 #![warn(missing_docs)]
+#![allow(dead_code)]
 
 mod error;
 mod mesh;
@@ -18,9 +17,7 @@ mod radio;
 mod sensor;
 mod utils;
 
-use core::{marker::PhantomData, time::Duration};
-
-use crate::{error::HardwareResult, platform::Platform, radio::Radio};
+use crate::{error::HardwareResult, radio::Radio};
 
 fn main() {}
 

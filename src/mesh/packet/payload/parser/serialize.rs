@@ -27,7 +27,13 @@ impl PayloadSerializer for Payload {
                 auth_code,
                 flags,
                 path,
-            } => todo!(),
+            } => {
+                let mut writer = Writer::new();
+
+                writer.put_le_u32(trace_tag);
+
+                Ok(writer.finish())
+            }
             Payload::Control(control_data) => serialize_control(control_data),
             Payload::Ack { crc } => serialize_ack(crc),
             Payload::MultiPart {

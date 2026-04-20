@@ -1,14 +1,10 @@
 mod noise_floor;
 
-use core::{marker::PhantomData, time};
+use core::marker::PhantomData;
 
 use crate::{
     error::HardwareResult,
-    mesh::{
-        packet::Packet,
-        preferences::{self, Preferences},
-        queue::PacketQueue,
-    },
+    mesh::{packet::Packet, preferences::Preferences, queue::PacketQueue},
     platform::Platform,
     radio::noise_floor::NoiseFloor,
 };
@@ -185,7 +181,7 @@ impl<R: Radio, P: Platform> RadioDriver<R, P> {
         if !self.is_ready || self.radio.is_receiving_packet().unwrap_or(true) {
             return;
         }
-        self.radio.sleep(); //  warm sleep to reset analog frontend
+        let _ = self.radio.sleep(); //  warm sleep to reset analog frontend
         self.state = RadioState::Idle;
         self.noise_floor.reset();
     }

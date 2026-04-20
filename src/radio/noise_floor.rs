@@ -1,12 +1,7 @@
-use core::{marker::PhantomData, time};
+use core::marker::PhantomData;
 
 use crate::{
-    error::HardwareResult,
-    mesh::{
-        packet::Packet,
-        preferences::{self, Preferences},
-        queue::PacketQueue,
-    },
+    mesh::preferences::Preferences,
     platform::Platform,
     radio::{Radio, RadioState},
 };
@@ -48,7 +43,7 @@ impl<R: Radio, P: Platform> NoiseFloor<R, P> {
                 return;
             };
             let rssi = rssi as isize;
-            if (rssi < self.value + SAMPLING_THRESHOLD) {
+            if rssi < self.value + SAMPLING_THRESHOLD {
                 self.samples = self.samples.saturating_add(1);
                 self.sum = self.sum.saturating_add(rssi);
             }

@@ -138,7 +138,6 @@ impl RemoteIdentity {
 
 #[cfg(test)]
 mod tests {
-    use std::process::id;
 
     use crate::mesh::packet::encryption::{decrypt, encrypt};
 

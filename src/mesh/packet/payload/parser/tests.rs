@@ -1,7 +1,5 @@
 #![cfg(test)]
 
-use core::time;
-
 use super::*;
 use crate::mesh::{
     channel::ChannelIdentity,
@@ -136,7 +134,7 @@ fn parse_advert() {
         name,
         extra_1,
         extra_2,
-        signature,
+        signature: _,
         advert_type,
     } = payload.clone()
     else {
@@ -189,6 +187,7 @@ fn parse_ack() {
 }
 
 //#[test]
+#[allow(unused)]
 fn parse_text_message() {
     todo!("Use leakable private key");
     let mut contacts = Contacts::new();
@@ -197,11 +196,14 @@ fn parse_text_message() {
         contacts: &contacts,
     };
 
-    parser.contacts.insert_node(RemoteIdentity {
-        public: dehex("255100a473caaeecb8e685ba6d8582abaa5761d63f73b83382c9640d237db580")
-            .try_into()
-            .unwrap(),
-    });
+    parser
+        .contacts
+        .insert_node(RemoteIdentity {
+            public: dehex("255100a473caaeecb8e685ba6d8582abaa5761d63f73b83382c9640d237db580")
+                .try_into()
+                .unwrap(),
+        })
+        .unwrap();
     let payload_bytes =
         dehex("D3255365327C88F64780F6EFAE4747F8598D425D330266F0C7AEEEED8923FF59D9DE1DB6");
     let payload = parser
@@ -227,8 +229,8 @@ fn parse_text_message() {
 fn parse_group_text() {
     let mut contacts = Contacts::new();
     let id = ChannelIdentity::from_hashtag("#test");
-    contacts.insert_channel(id);
-    let mut parser = test_parser(&contacts);
+    contacts.insert_channel(id).unwrap();
+    let parser = test_parser(&contacts);
     let payload_bytes =
         dehex("D96A8977303734A72FEAD4904178434951288D14B203E4E8F0B9B945F55EC50FDA81B5");
     let payload = parser
@@ -243,6 +245,7 @@ fn parse_group_text() {
     else {
         panic!()
     };
+    assert_eq!(0xD9, channel.hash);
     assert_eq!("Yuzu43: test", message);
     assert!(matches!(text_message_type, TextMessageType::Plain));
     assert_eq!(1_776_024_490, timestamp);

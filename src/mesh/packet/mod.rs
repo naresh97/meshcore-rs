@@ -76,11 +76,7 @@ struct PathMetadata {
 }
 
 impl Packet {
-    pub fn parse(
-        mut data: &[u8],
-        identity: &LocalIdentity,
-        contacts: &Contacts,
-    ) -> ParserResult<Self> {
+    pub fn parse(data: &[u8], identity: &LocalIdentity, contacts: &Contacts) -> ParserResult<Self> {
         let mut reader = Reader::new(data);
         let header = reader.take_u8()?;
         let header = Header::from(header);
@@ -163,6 +159,7 @@ mod tests {
                 hex::decode("69042B6E0B7C3F2584818B3C24").unwrap()
             );
         }
+        #[allow(unused)]
         let Payload::Advert {
             id,
             timestamp,

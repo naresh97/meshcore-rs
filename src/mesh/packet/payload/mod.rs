@@ -4,11 +4,9 @@ pub use parser::PayloadParser;
 use crate::{
     mesh::{
         channel::ChannelIdentity,
-        contacts::Contacts,
-        identity::{LocalIdentity, RemoteIdentity, SIGNATURE_SIZE},
+        identity::{RemoteIdentity, SIGNATURE_SIZE},
         packet::{
-            MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType, RouteType,
-            encryption::decrypt,
+            MAX_PACKET_PAYLOAD, MAX_PATH_SIZE, PayloadType,
             node::{NodeType, NodeTypeSet},
             path::Path,
         },

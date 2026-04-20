@@ -1,6 +1,6 @@
 use crate::{
     error::{EncryptionError, EncryptionResult},
-    mesh::{identity::PUBLIC_KEY_SIZE, packet::MAX_PACKET_PAYLOAD},
+    mesh::packet::MAX_PACKET_PAYLOAD,
 };
 
 pub const SECRET_SIZE: usize = 32;
@@ -13,7 +13,7 @@ pub fn encrypt(
     secret: &[u8; SECRET_SIZE],
     plaintext: &[u8],
 ) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
-    let mut ciphertext = aes_encrypt(
+    let ciphertext = aes_encrypt(
         secret
             .first_chunk::<CIPHER_KEY_SIZE>()
             .ok_or(EncryptionError::MalformedSecret)?,
@@ -69,14 +69,14 @@ fn aes_encrypt(
 ) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
     use aes::{
         Aes128,
-        cipher::{BlockDecrypt, BlockEncrypt, KeyInit},
+        cipher::{BlockEncrypt, KeyInit},
     };
 
     let aes = Aes128::new(secret.into());
     let mut result =
         heapless::Vec::from_slice(plaintext).map_err(|_| EncryptionError::OutOfSpace)?;
     let padding = (16 - (result.len() % 16)) % 16;
-    result.resize(result.len() + padding, 0u8);
+    result.resize(result.len() + padding, 0u8)?;
     let (blocks, _) = result.as_chunks_mut::<16>();
     for block in blocks {
         aes.encrypt_block(block.into());
@@ -90,7 +90,7 @@ fn aes_decrypt(
 ) -> EncryptionResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>> {
     use aes::{
         Aes128,
-        cipher::{BlockDecrypt, BlockEncrypt, KeyInit},
+        cipher::{BlockDecrypt, KeyInit},
     };
 
     let aes = Aes128::new(secret.into());
@@ -119,8 +119,6 @@ fn gen_hmac(secret: &[u8], ciphertext: &[u8]) -> EncryptionResult<[u8; CIPHER_MA
 
 #[cfg(test)]
 mod tests {
-
-    use std::ffi::CStr;
 
     use super::*;
     #[test]

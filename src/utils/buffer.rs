@@ -1,6 +1,6 @@
 use heapless::CapacityError;
 
-use crate::error::{ParserError, ParserResult, SerializerError, SerializerResult};
+use crate::error::{ParserError, ParserResult};
 
 pub struct Reader<'a>(&'a [u8]);
 
@@ -45,11 +45,6 @@ impl<'a> Reader<'a> {
         let b = self.take_chunk::<2>()?;
         let b = u16::from_le_bytes(b);
         Ok(b)
-    }
-
-    pub fn peek_chunk<const N: usize>(&mut self) -> Option<&[u8; N]> {
-        let (b, _) = self.0.split_first_chunk::<N>()?;
-        Some(b)
     }
 
     pub fn rest(self) -> &'a [u8] {
