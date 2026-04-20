@@ -28,42 +28,7 @@ impl PayloadSerializer for Payload {
                 flags,
                 path,
             } => todo!(),
-            Payload::Control(control_data) => match control_data {
-                ControlData::DiscoverRequest {
-                    filter,
-                    tag,
-                    only_prefix,
-                    since,
-                } => {
-                    let mut writer = Writer::new();
-                    let mut header = u4::from(ControlType::DiscoverRequest).as_u8() << 4;
-                    if only_prefix {
-                        header |= 0b1;
-                    }
-                    writer.put_u8(header)?;
-                    writer.put_u8(filter.into())?;
-                    writer.put_le_u32(tag)?;
-                    if let Some(since) = since {
-                        writer.put_le_u32(since);
-                    }
-                    Ok(writer.finish())
-                }
-                ControlData::DiscoverResponse {
-                    filter,
-                    tag,
-                    node_type,
-                    identity,
-                } => {
-                    let mut writer = Writer::new();
-                    let header = u4::from(ControlType::DiscoverResponse).as_u8() << 4;
-                    let header = header | (node_type.to_index() & 0b1111);
-                    writer.put_u8(header)?;
-                    writer.put_u8(filter.into())?;
-                    writer.put_le_u32(tag)?;
-                    writer.put_slice(&identity.public);
-                    Ok(writer.finish())
-                }
-            },
+            Payload::Control(control_data) => serialize_control(control_data),
             Payload::Ack { crc } => serialize_ack(crc),
             Payload::MultiPart {
                 remaining_packets,
@@ -109,6 +74,45 @@ impl PayloadSerializer for Payload {
                 extra_2,
                 advert_type,
             ),
+        }
+    }
+}
+
+fn serialize_control(control_data: ControlData) -> PayloadSerializerResult {
+    match control_data {
+        ControlData::DiscoverRequest {
+            filter,
+            tag,
+            only_prefix,
+            since,
+        } => {
+            let mut writer = Writer::new();
+            let mut header = u4::from(ControlType::DiscoverRequest).as_u8() << 4;
+            if only_prefix {
+                header |= 0b1;
+            }
+            writer.put_u8(header)?;
+            writer.put_u8(filter.into())?;
+            writer.put_le_u32(tag)?;
+            if let Some(since) = since {
+                writer.put_le_u32(since);
+            }
+            Ok(writer.finish())
+        }
+        ControlData::DiscoverResponse {
+            filter,
+            tag,
+            node_type,
+            identity,
+        } => {
+            let mut writer = Writer::new();
+            let header = u4::from(ControlType::DiscoverResponse).as_u8() << 4;
+            let header = header | (node_type.to_index() & 0b1111);
+            writer.put_u8(header)?;
+            writer.put_u8(filter.into())?;
+            writer.put_le_u32(tag)?;
+            writer.put_slice(&identity.public);
+            Ok(writer.finish())
         }
     }
 }

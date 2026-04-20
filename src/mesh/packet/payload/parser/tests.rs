@@ -24,15 +24,16 @@ fn dehex(s: &str) -> Vec<u8> {
 
 #[test]
 fn parse_trace() {
-    let payload = dehex("4864DE9B0000000001FDA6899884988998FDA6");
+    let payload_bytes = dehex("4864DE9B0000000001FDA6899884988998FDA6");
+    let payload = test_parser(&Contacts::new())
+        .parse(&payload_bytes, PayloadType::Trace)
+        .unwrap();
     let Payload::Trace {
         trace_tag,
         auth_code,
         flags,
         path,
-    } = test_parser(&Contacts::new())
-        .parse(&payload, PayloadType::Trace)
-        .unwrap()
+    } = payload.clone()
     else {
         panic!()
     };
@@ -50,6 +51,9 @@ fn parse_trace() {
         ],
         path
     );
+
+    let serialized = payload.serialize().unwrap();
+    assert_eq!(payload_bytes.as_slice(), serialized.as_slice());
 }
 #[test]
 fn parse_control_discover_response() {
