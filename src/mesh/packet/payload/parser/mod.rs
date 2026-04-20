@@ -140,14 +140,14 @@ impl PayloadParser<'_> {
         }
         let source_hash = reader.take_u8()?;
         let ciphertext = reader.rest();
-        let Some((id, plaintext)) =
-            self.contacts
-                .get_matching_nodes_iter(source_hash)
-                .find_map(|id| {
-                    let shared = self.identity.get_shared_key(id).ok()?;
-                    let plaintext = decrypt(&shared, ciphertext).ok()?;
-                    Some((id.clone(), plaintext))
-                })
+        let Some((remote, plaintext)) = self
+            .contacts
+            .get_matching_nodes_iter(source_hash)
+            .find_map(|id| {
+                let shared = self.identity.get_shared_key(id).ok()?;
+                let plaintext = decrypt(&shared, ciphertext).ok()?;
+                Some((id.clone(), plaintext))
+            })
         else {
             return Ok(Payload::Undecryptable);
         };
@@ -155,7 +155,7 @@ impl PayloadParser<'_> {
         match payload_type {
             PayloadType::Path => Self::parse_path(source_hash, reader),
             PayloadType::Request => Self::parse_request(reader),
-            PayloadType::TextMessage => Self::parse_text_message(reader),
+            PayloadType::TextMessage => Self::parse_text_message(remote, reader),
             PayloadType::Response => {
                 let tag = reader.take_le_u32()?;
                 let payload = reader.rest();
@@ -290,7 +290,10 @@ impl PayloadParser<'_> {
         };
         Ok(Payload::Request(request_data))
     }
-    fn parse_text_message(mut reader: Reader<'_>) -> Result<Payload, ParserError> {
+    fn parse_text_message(
+        remote: RemoteIdentity,
+        mut reader: Reader<'_>,
+    ) -> Result<Payload, ParserError> {
         let timestamp = reader.take_le_u32()?;
         let flags = reader.take_u8()?;
         let text_message_type = TextMessageType::try_from(flags >> 2)?;
@@ -303,6 +306,8 @@ impl PayloadParser<'_> {
             .ok_or(ParserError::InvalidInput)?;
         let text: heapless::String<MAX_PACKET_PAYLOAD> = text.try_into()?;
         Ok(Payload::TextMessage {
+            remote,
+            timestamp,
             text_message_type,
             text,
         })

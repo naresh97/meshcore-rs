@@ -2,9 +2,10 @@ use crate::{
     error::SerializerResult,
     mesh::{
         channel::ChannelIdentity,
+        identity::LocalIdentity,
         packet::{
             MAX_PACKET_PAYLOAD,
-            encryption::encrypt_with_channel_secret,
+            encryption::{encrypt, encrypt_with_channel_secret},
             path::Path,
             payload::{
                 ControlData, Payload,
@@ -18,11 +19,11 @@ use bilge::prelude::*;
 type PayloadSerializerResult = SerializerResult<heapless::Vec<u8, MAX_PACKET_PAYLOAD>>;
 
 pub trait PayloadSerializer {
-    fn serialize(self) -> PayloadSerializerResult;
+    fn serialize(self, identity: &LocalIdentity) -> PayloadSerializerResult;
 }
 impl PayloadSerializer for Payload {
     #[allow(unused_variables)]
-    fn serialize(self) -> PayloadSerializerResult {
+    fn serialize(self, identity: &LocalIdentity) -> PayloadSerializerResult {
         match self {
             Payload::Trace {
                 trace_tag,
@@ -61,9 +62,30 @@ impl PayloadSerializer for Payload {
             } => todo!(),
             Payload::Request(request_data) => todo!(),
             Payload::TextMessage {
+                remote,
+                timestamp,
                 text_message_type,
                 text,
-            } => todo!(),
+            } => {
+                let mut plaintext = Writer::<MAX_PACKET_PAYLOAD>::new();
+                plaintext.put_le_u32(timestamp)?;
+                let flags = u8::from(text_message_type) << 2;
+                plaintext.put_u8(flags)?;
+                plaintext.put_slice(text.as_bytes())?;
+                let plaintext = plaintext.finish();
+
+                let shared_key = identity.get_shared_key(&remote)?;
+                let ciphertext = encrypt(&shared_key, &plaintext)?;
+
+                let mut writer = Writer::new();
+
+                let destination_hash = remote.public[0];
+                writer.put_u8(destination_hash)?;
+                let source_hash = identity.public[0];
+                writer.put_u8(source_hash)?;
+
+                Ok(writer.finish())
+            }
             Payload::Response { tag, payload } => todo!(),
             Payload::AnonRequest(anon_request_data) => todo!(),
             Payload::GroupText {

@@ -42,6 +42,8 @@ pub enum Payload {
     },
     Request(RequestData),
     TextMessage {
+        remote: RemoteIdentity,
+        timestamp: u32,
         text_message_type: TextMessageType,
         text: heapless::String<MAX_PACKET_PAYLOAD>,
     },
